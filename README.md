@@ -55,4 +55,15 @@ A Flask web application to help select an optimal Fantasy Premier League (FPL) t
 
 *   Data fetching and processing can take a few seconds.
 *   The 'Final Value' metric is a sum of various adjusted performance stats. The specific components can be seen and modified in `FPL_AutoBot.py`.
-*   The PuLP solver might not find an optimal solution if the constraints (especially budget) are too tight or if there aren't enough available players meeting the criteria after filtering. 
+*   The PuLP solver might not find an optimal solution if the constraints (especially budget) are too tight or if there aren't enough available players meeting the criteria after filtering.
+
+## Future Enhancements
+
+*   **Fixture Difficulty:** Incorporate upcoming Fixture Difficulty Ratings (FDR) into player valuation or filtering.
+*   **Form Weighting:** Allow users to adjust the weighting between long-term stats and recent form.
+*   **Differential Value:** Add an option to boost the value of low-ownership players (`selected_by_percent`).
+*   **BGW/DGW Handling:** Add features to help plan for blank and double gameweeks (e.g., excluding players with blanks).
+*   **Injury/Status Display:** Show player status (injured, doubtful) and news more prominently in the results.
+*   **Advanced Captaincy Logic:** Implement different strategies for captain selection (e.g., highest `ep_next`, best fixture).
+*   **Underlying Stats Visibility:** Display key expected stats (xG, xA) in the output tables.
+*   **UI/UX Improvements:** Enhance user feedback (flash messages for errors), add table sorting, tooltips, etc. 
