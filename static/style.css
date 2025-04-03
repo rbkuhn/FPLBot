@@ -1,0 +1,112 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    margin: 40px auto;
+    max-width: 960px;
+    line-height: 1.6;
+    padding: 0 20px;
+    color: #333;
+    background-color: #f1f1f1;
+}
+
+h1, h2 {
+    color: #37003c;
+    margin-bottom: 1em;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 1.5em;
+}
+
+.team-section {
+    background-color: #fff;
+    padding: 20px;
+    margin-bottom: 30px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Table Styling */
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+.table th, .table td {
+    border: 1px solid #dee2e6;
+    padding: 12px;
+    text-align: left;
+    vertical-align: top;
+}
+
+.table th {
+    background-color: #f1f1f1;
+    font-weight: bold;
+    color: #333;
+}
+
+.table-striped tbody tr:nth-child(odd) {
+    background-color: #f8f9fa;
+}
+
+.table-striped tbody tr:hover {
+    background-color: #e9ecef;
+}
+
+/* Form Styling (for index.html) */
+form {
+    background-color: #fff;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-top: 20px;
+}
+
+form label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+    color: #495057;
+}
+
+form input[type="number"] {
+    width: calc(100% - 24px); /* Full width minus padding */
+    padding: 10px;
+    margin-bottom: 20px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    box-sizing: border-box; /* Include padding in width */
+}
+
+form button[type="submit"] {
+    background-color: #37003c;
+    color: white;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.2s ease-in-out;
+}
+
+form button[type="submit"]:hover {
+    background-color: #500e54;
+}
+
+/* Link Styling */
+a {
+    color: #00a6ae;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+    color: #007f82;
+}
+
+/* Total Cost Display */
+p strong {
+    font-size: 1.1em;
+    color: #333;
+} 
