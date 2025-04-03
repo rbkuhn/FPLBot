@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDEs and editors
+.idea/
+.vscode/
+
+# Data files
+*.csv
+*.json
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
