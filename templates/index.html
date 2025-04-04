@@ -6,21 +6,124 @@
     <title>FPL AutoBot</title>
     <!-- Link to external CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .criteria-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .criteria-section h3 {
+            margin-top: 0;
+        }
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .checkbox-item {
+            margin-right: 15px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+    </style>
 </head>
 <body>
     <h1>Welcome to FPL AutoBot!</h1>
     <p>This tool helps you select your Fantasy Premier League team.</p>
-    
-    <!-- Add a form or button later to trigger team selection -->
+
     <form action="/select_team" method="post">
-        <label for="budget">Total Budget:</label>
-        <input type="number" id="budget" name="budget" value="100.0" step="0.1" required><br><br>
-        
-        <label for="sub_factor">Substitution Factor (0.0 - 1.0):</label>
-        <input type="number" id="sub_factor" name="sub_factor" value="0.2" step="0.1" min="0" max="1" required><br><br>
+        <div class="form-group">
+            <label for="budget">Total Budget:</label>
+            <input type="number" id="budget" name="budget" value="100.0" step="0.1" required>
+        </div>
+
+        <div class="form-group">
+            <label for="sub_factor">Substitution Factor (0.0 - 1.0):</label>
+            <input type="number" id="sub_factor" name="sub_factor" value="0.2" step="0.1" min="0" max="1" required>
+        </div>
+
+        <div class="criteria-section">
+            <h3>Player Selection Criteria</h3>
+
+            <div class="form-group">
+                <label for="min_minutes">Minimum Minutes Played:</label>
+                <select id="min_minutes" name="min_minutes">
+                    <option value="0">No minimum</option>
+                    <option value="90">At least 1 game (90 min)</option>
+                    <option value="270">At least 3 games (270 min)</option>
+                    <option value="450" selected>At least 5 games (450 min)</option>
+                    <option value="810">At least 9 games (810 min)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Captain Position:</label>
+                <div class="checkbox-group">
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="captain_gkp" name="captain_positions" value="GKP">
+                        <label for="captain_gkp">Goalkeeper</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="captain_def" name="captain_positions" value="DEF">
+                        <label for="captain_def">Defender</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="captain_mid" name="captain_positions" value="MID" checked>
+                        <label for="captain_mid">Midfielder</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="captain_fwd" name="captain_positions" value="FWD">
+                        <label for="captain_fwd">Forward</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Feature Weighting:</label>
+                <div class="checkbox-group">
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="weight_points" name="feature_weights" value="points" checked>
+                        <label for="weight_points">Points</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="weight_value" name="feature_weights" value="value" checked>
+                        <label for="weight_value">Value (Points/Cost)</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="weight_form" name="feature_weights" value="form" checked>
+                        <label for="weight_form">Form</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="weight_xg" name="feature_weights" value="expected_goals" checked>
+                        <label for="weight_xg">Expected Goals</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="weight_xa" name="feature_weights" value="expected_assists" checked>
+                        <label for="weight_xa">Expected Assists</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Formation Preference:</label>
+                <select id="formation" name="formation">
+                    <option value="any" selected>Any Valid Formation</option>
+                    <option value="343">3-4-3</option>
+                    <option value="352">3-5-2</option>
+                    <option value="433">4-3-3</option>
+                    <option value="442">4-4-2</option>
+                    <option value="451">4-5-1</option>
+                    <option value="532">5-3-2</option>
+                    <option value="541">5-4-1</option>
+                </select>
+            </div>
+        </div>
 
         <button type="submit">Select My Team</button>
     </form>
 
 </body>
-</html> 
+</html>

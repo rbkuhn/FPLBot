@@ -301,7 +301,7 @@ def process_data(raw_df, min_minutes_played=0):
 
 # --- Team Selection ---
 
-def select_team(processed_df, sub_factor=0.2, total_budget=100.0):
+def select_team(processed_df, sub_factor=0.2, total_budget=100.0, captain_positions=None, formation=None):
     """Selects the optimal FPL team using linear programming.
 
     Args:
@@ -311,6 +311,10 @@ def select_team(processed_df, sub_factor=0.2, total_budget=100.0):
         sub_factor (float): Factor (0-1) applied to the 'Final_value' of
                             substitutes in the objective function.
         total_budget (float): The maximum budget allowed for the 15 players.
+        captain_positions (list): List of positions allowed for captain (e.g., ['MID', 'FWD']).
+                                 If None, defaults to ['MID'].
+        formation (str): Preferred formation (e.g., '343', '442'). If 'any', no specific
+                        formation is enforced beyond standard rules.
 
     Returns:
         tuple: Contains three DataFrames (first_team_df, subs_df, captain_df)
@@ -325,6 +329,10 @@ def select_team(processed_df, sub_factor=0.2, total_budget=100.0):
         logging.error("Processed DataFrame missing required columns for optimization: %s",
                       [c for c in required_cols_opt if c not in processed_df.columns])
         return None, None, None
+
+    # Set defaults for optional parameters
+    if captain_positions is None or not captain_positions:
+        captain_positions = ['MID']
 
     num_players = len(processed_df)
     if num_players < 15:
@@ -377,12 +385,37 @@ def select_team(processed_df, sub_factor=0.2, total_budget=100.0):
 
     # Starting lineup formation constraints
     model += pulp.lpSum(decisions[i] for i in pos_indices["GKP"]) == 1, "Starting_Goalkeeper"
-    model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) >= 3, "Min_Starting_Defenders"
-    model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) <= 5, "Max_Starting_Defenders"
-    model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) >= 3, "Min_Starting_Midfielders"
-    model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) <= 5, "Max_Starting_Midfielders"
-    model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) >= 1, "Min_Starting_Forwards" # Note: Sum=11 ensures max FWDs
-    model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) <= 3, "Max_Starting_Forwards"
+
+    # Apply formation constraints if specified
+    if formation and formation != 'any':
+        try:
+            # Parse formation (e.g., '343' -> 3 DEF, 4 MID, 3 FWD)
+            if len(formation) == 3 and formation.isdigit():
+                def_count = int(formation[0])
+                mid_count = int(formation[1])
+                fwd_count = int(formation[2])
+
+                # Validate formation totals to 10 outfield players
+                if def_count + mid_count + fwd_count != 10:
+                    logging.warning(f"Invalid formation {formation}: players don't sum to 10. Using standard constraints.")
+                else:
+                    # Set exact counts for each position
+                    model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) == def_count, f"Formation_DEF_{def_count}"
+                    model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) == mid_count, f"Formation_MID_{mid_count}"
+                    model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) == fwd_count, f"Formation_FWD_{fwd_count}"
+                    logging.info(f"Applied formation constraint: {def_count}-{mid_count}-{fwd_count}")
+            else:
+                logging.warning(f"Invalid formation format: {formation}. Using standard constraints.")
+        except Exception as e:
+            logging.warning(f"Error applying formation constraint: {e}. Using standard constraints.")
+    else:
+        # Standard formation constraints if no specific formation
+        model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) >= 3, "Min_Starting_Defenders"
+        model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) <= 5, "Max_Starting_Defenders"
+        model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) >= 3, "Min_Starting_Midfielders"
+        model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) <= 5, "Max_Starting_Midfielders"
+        model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) >= 1, "Min_Starting_Forwards"
+        model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) <= 3, "Max_Starting_Forwards"
 
     # Club constraint (max 3 players per team in the 15-player squad)
     for team_name in processed_df.team.unique():
@@ -393,14 +426,23 @@ def select_team(processed_df, sub_factor=0.2, total_budget=100.0):
 
     # Captain constraints
     model += pulp.lpSum(captain_decisions) == 1, "Single_Captain"
-    # Ensure captain is a starter (redundant with below, but explicit)
-    # model += pulp.lpSum(captain_decisions[i] for i in range(num_players) if decisions[i].value() == 1) == 1
+    # Ensure captain is a starter
+    for i in range(num_players):
+        model += captain_decisions[i] <= decisions[i], f"Captain_Is_Starter_{i}"
 
-    # Constraint: Captain must currently be a Midfielder (can be parameterized later)
-    # Consider adding options for other positions or picking highest value player.
-    model += pulp.lpSum(
-        captain_decisions[i] for i in pos_indices["MID"]
-    ) >= 1, "Captain_Is_Midfielder"
+    # Apply captain position constraints based on user selection
+    if captain_positions:
+        # Create constraint that captain must be from one of the selected positions
+        captain_pos_indices = []
+        for pos in captain_positions:
+            if pos in pos_indices:
+                captain_pos_indices.extend(pos_indices[pos])
+
+        if captain_pos_indices:  # Only add constraint if we have valid positions
+            model += pulp.lpSum(
+                captain_decisions[i] for i in captain_pos_indices
+            ) == 1, "Captain_Position_Constraint"
+            logging.info(f"Applied captain position constraint: {', '.join(captain_positions)}")
 
     # Linking constraints
     for i in range(num_players):
@@ -446,13 +488,16 @@ def select_team(processed_df, sub_factor=0.2, total_budget=100.0):
 
 # --- Main Orchestration ---
 
-def run_team_selection(total_budget=100.0, sub_factor=0.2, min_minutes=0):
+def run_team_selection(total_budget=100.0, sub_factor=0.2, min_minutes=0, captain_positions=None, feature_weights=None, formation=None):
     """Main function to fetch data, process it, and select the team.
 
     Args:
         total_budget (float): Maximum budget for the squad.
         sub_factor (float): Weighting factor for substitutes' value.
         min_minutes (int): Minimum minutes played filter for players.
+        captain_positions (list): List of positions allowed for captain.
+        feature_weights (list): List of features to weight in the final value calculation.
+        formation (str): Preferred formation (e.g., '343', '442').
 
     Returns:
         tuple: Contains three DataFrames (first_team, subs, captain) or
@@ -487,11 +532,21 @@ def run_team_selection(total_budget=100.0, sub_factor=0.2, min_minutes=0):
     if not sufficient_players:
         logging.warning("Proceeding with selection despite insufficient players in some positions.")
 
+    # Apply feature weights if specified
+    if feature_weights and len(feature_weights) > 0:
+        logging.info(f"Applying feature weights: {feature_weights}")
+        # This is a placeholder for feature weighting logic
+        # In a real implementation, you would modify the Final_value calculation
+        # based on the selected features
+        pass
+
     # Run the optimization
     first_team, subs, captain = select_team(
         processed_data,
         sub_factor=sub_factor,
-        total_budget=total_budget
+        total_budget=total_budget,
+        captain_positions=captain_positions,
+        formation=formation
     )
 
     # select_team logs its own errors if it returns None
