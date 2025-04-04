@@ -29,6 +29,16 @@ REQUIRED_COLS = [
     "threat", "form", "ep_this", "ep_next", "transfers_in_event",
     "transfers_out_event", "status", "element_type" # Keep status/element_type for processing
 ]
+# Map user-friendly weight names to the base feature names
+# (These base names correspond to the first element in FEATURES_TO_ADJUST tuples)
+FEATURE_WEIGHT_MAP = {
+    'points': ["total_points", "points_per_minute", "bonus", "bonus_per_minute", "bps", "bps_per_minute"],
+    'value': ["points_per_cost", "bonus_per_cost", "bps_per_cost"],
+    'form': ["form"], # Add form_per_cost, form_per_minute if created
+    'expected_goals': ["expected_goals", "expected_goals_per_cost", "expected_goals_per_minute", "goals_over_expected"],
+    'expected_assists': ["expected_assists", "expected_assists_per_cost", "expected_assists_per_minute", "assists_over_expected"],
+    # Add more mappings as needed, e.g., for involvements, threat, creativity, etc.
+}
 # Features to engineer and scale for the final player value calculation.
 # Tuple format: (feature_name, should_higher_be_better?)
 # Note: For 'over_expected' stats, lower absolute difference might be seen as better (closer to expectation),
@@ -138,13 +148,15 @@ def create_adjusted_feature(df, feature_name, higher_is_better=True):
     return df
 
 
-def process_data(raw_df, min_minutes_played=0):
+def process_data(raw_df, min_minutes_played=0, feature_weights=None):
     """Processes the raw FPL data to prepare it for team selection.
 
     Args:
         raw_df (pd.DataFrame): Raw DataFrame from get_data_fpl.
-        min_minutes_played (int): Minimum minutes a player must have played
-                                   to be considered.
+        min_minutes_played (int): Minimum minutes player must have played.
+        feature_weights (list, optional): User-selected feature categories
+                                          (e.g., ['points', 'value']).
+                                          If None or empty, all features used.
 
     Returns:
         pd.DataFrame: Processed DataFrame ready for optimization,
@@ -264,22 +276,55 @@ def process_data(raw_df, min_minutes_played=0):
 
     # --- Feature Scaling and Final Value Calculation ---
     logging.info("Scaling features...")
-    adjusted_feature_cols = []
+    all_adj_feature_cols = [] # Keep track of ALL adjusted cols created
     for feature, high_is_good in FEATURES_TO_ADJUST:
         if feature in df.columns:
             df = create_adjusted_feature(df, feature, higher_is_better=high_is_good)
-            adjusted_feature_cols.append(f"{feature}_adj")
+            all_adj_feature_cols.append(f"{feature}_adj") # Add suffix
             logging.debug(f"Scaled feature: {feature}")
         else:
             logging.warning("Feature '%s' not found for adjustment.", feature)
 
-    # Create 'Final_value' by summing all scaled features
-    # This assumes equal weighting for all scaled features.
-    if adjusted_feature_cols:
-        df['Final_value'] = df[adjusted_feature_cols].sum(axis=1)
-        logging.info("Calculated 'Final_value' based on %d scaled features.", len(adjusted_feature_cols))
+    # --- Determine Columns for Final Value based on Weights ---
+    final_value_cols = []
+    if feature_weights:
+        logging.info(f"Using feature weights: {feature_weights}")
+        selected_base_features = set() # Use a set to avoid double counting
+        for weight_key in feature_weights:
+            if weight_key in FEATURE_WEIGHT_MAP:
+                selected_base_features.update(FEATURE_WEIGHT_MAP[weight_key])
+            else:
+                logging.warning(f"Unknown feature weight key: '{weight_key}'")
+
+        # Convert selected base features to their adjusted column names
+        for base_feature in selected_base_features:
+            adj_col = f"{base_feature}_adj"
+            if adj_col in all_adj_feature_cols:
+                final_value_cols.append(adj_col)
+            else:
+                # This might happen if the base feature wasn't in the original df
+                logging.debug(f"Adjusted column '{adj_col}' for weighted feature '{base_feature}' not available.")
+
+        # Always include minutes played for basic filtering relevance
+        # (Alternative: make 'minutes' its own weight category)
+        minutes_adj_col = "minutes_adj"
+        if minutes_adj_col in all_adj_feature_cols and minutes_adj_col not in final_value_cols:
+            final_value_cols.append(minutes_adj_col)
+            logging.info("Including 'minutes_adj' in Final Value calculation.")
+
+        if not final_value_cols:
+            logging.warning("No adjusted features selected based on weights. Defaulting to all available.")
+            final_value_cols = all_adj_feature_cols # Fallback to all if selection results in none
     else:
-        logging.warning("No adjusted features were created. Setting Final_value to 0.")
+        logging.info("No feature weights specified, using all available adjusted features.")
+        final_value_cols = all_adj_feature_cols # Default to all if no weights provided
+
+    # --- Final Value Calculation ---
+    if final_value_cols:
+        df['Final_value'] = df[final_value_cols].sum(axis=1)
+        logging.info("Calculated 'Final_value' based on %d features: %s", len(final_value_cols), ", ".join(final_value_cols))
+    else:
+        logging.warning("No adjusted features available to calculate Final_value. Setting to 0.")
         df['Final_value'] = 0.0
 
     # --- Final Column Selection ---
@@ -301,7 +346,7 @@ def process_data(raw_df, min_minutes_played=0):
 
 # --- Team Selection ---
 
-def select_team(processed_df, sub_factor=0.2, total_budget=100.0, captain_positions=None, formation=None):
+def select_team(processed_df, sub_factor=0.2, total_budget=100.0, captain_positions=None, formation='any', feature_weights=None):
     """Selects the optimal FPL team using linear programming.
 
     Args:
@@ -311,16 +356,19 @@ def select_team(processed_df, sub_factor=0.2, total_budget=100.0, captain_positi
         sub_factor (float): Factor (0-1) applied to the 'Final_value' of
                             substitutes in the objective function.
         total_budget (float): The maximum budget allowed for the 15 players.
-        captain_positions (list): List of positions allowed for captain (e.g., ['MID', 'FWD']).
-                                 If None, defaults to ['MID'].
-        formation (str): Preferred formation (e.g., '343', '442'). If 'any', no specific
-                        formation is enforced beyond standard rules.
+        captain_positions (list, optional): List of positions allowed for captain (e.g., ['MID', 'FWD']). Defaults to ['MID'].
+        formation (str, optional): Desired formation (e.g., '3-4-3', '4-4-2', 'any'). Defaults to 'any'.
+        feature_weights (list, optional): Feature categories to include in 'Final_value'. Defaults to all.
 
     Returns:
         tuple: Contains three DataFrames (first_team_df, subs_df, captain_df)
                sorted by position. Returns (None, None, None) if optimization fails
                or if input data is invalid.
     """
+    # Default captain positions if none provided
+    if captain_positions is None:
+        captain_positions = ['MID']
+
     if processed_df is None or processed_df.empty:
         logging.error("Cannot select team: Processed DataFrame is empty or None.")
         return None, None, None
@@ -329,10 +377,6 @@ def select_team(processed_df, sub_factor=0.2, total_budget=100.0, captain_positi
         logging.error("Processed DataFrame missing required columns for optimization: %s",
                       [c for c in required_cols_opt if c not in processed_df.columns])
         return None, None, None
-
-    # Set defaults for optional parameters
-    if captain_positions is None or not captain_positions:
-        captain_positions = ['MID']
 
     num_players = len(processed_df)
     if num_players < 15:
@@ -386,30 +430,43 @@ def select_team(processed_df, sub_factor=0.2, total_budget=100.0, captain_positi
     # Starting lineup formation constraints
     model += pulp.lpSum(decisions[i] for i in pos_indices["GKP"]) == 1, "Starting_Goalkeeper"
 
-    # Apply formation constraints if specified
-    if formation and formation != 'any':
+    # -- Apply specific formation OR default min/max constraints --
+    if formation != 'any' and len(formation) == 3 and formation.isdigit():
         try:
-            # Parse formation (e.g., '343' -> 3 DEF, 4 MID, 3 FWD)
-            if len(formation) == 3 and formation.isdigit():
-                def_count = int(formation[0])
-                mid_count = int(formation[1])
-                fwd_count = int(formation[2])
+            num_def = int(formation[0])
+            num_mid = int(formation[1])
+            num_fwd = int(formation[2])
+            logging.info(f"Applying formation constraint: {num_def}-{num_mid}-{num_fwd}")
 
-                # Validate formation totals to 10 outfield players
-                if def_count + mid_count + fwd_count != 10:
-                    logging.warning(f"Invalid formation {formation}: players don't sum to 10. Using standard constraints.")
-                else:
-                    # Set exact counts for each position
-                    model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) == def_count, f"Formation_DEF_{def_count}"
-                    model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) == mid_count, f"Formation_MID_{mid_count}"
-                    model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) == fwd_count, f"Formation_FWD_{fwd_count}"
-                    logging.info(f"Applied formation constraint: {def_count}-{mid_count}-{fwd_count}")
+            # Validate formation sum (excluding GKP)
+            if num_def + num_mid + num_fwd != 10:
+                logging.warning(f"Invalid formation sum ({num_def}+{num_mid}+{num_fwd} != 10). Using default constraints.")
+                # Apply default min/max if formation is invalid
+                model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) >= 3, "Min_Starting_Defenders"
+                model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) <= 5, "Max_Starting_Defenders"
+                model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) >= 3, "Min_Starting_Midfielders"
+                model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) <= 5, "Max_Starting_Midfielders"
+                model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) >= 1, "Min_Starting_Forwards"
+                model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) <= 3, "Max_Starting_Forwards"
             else:
-                logging.warning(f"Invalid formation format: {formation}. Using standard constraints.")
-        except Exception as e:
-            logging.warning(f"Error applying formation constraint: {e}. Using standard constraints.")
+                # Apply exact formation constraints
+                model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) == num_def, f"Formation_{num_def}_DEF"
+                model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) == num_mid, f"Formation_{num_mid}_MID"
+                model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) == num_fwd, f"Formation_{num_fwd}_FWD"
+
+        except (ValueError, IndexError):
+            logging.warning(f"Could not parse formation string '{formation}'. Using default constraints.")
+            # Apply default min/max if parsing fails
+            model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) >= 3, "Min_Starting_Defenders"
+            model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) <= 5, "Max_Starting_Defenders"
+            model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) >= 3, "Min_Starting_Midfielders"
+            model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) <= 5, "Max_Starting_Midfielders"
+            model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) >= 1, "Min_Starting_Forwards"
+            model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) <= 3, "Max_Starting_Forwards"
     else:
-        # Standard formation constraints if no specific formation
+        # Apply default min/max if formation is 'any' or invalid format
+        if formation != 'any':
+             logging.warning(f"Invalid formation format '{formation}'. Using default constraints.")
         model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) >= 3, "Min_Starting_Defenders"
         model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) <= 5, "Max_Starting_Defenders"
         model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) >= 3, "Min_Starting_Midfielders"
@@ -426,25 +483,36 @@ def select_team(processed_df, sub_factor=0.2, total_budget=100.0, captain_positi
 
     # Captain constraints
     model += pulp.lpSum(captain_decisions) == 1, "Single_Captain"
-    # Ensure captain is a starter
-    for i in range(num_players):
-        model += captain_decisions[i] <= decisions[i], f"Captain_Is_Starter_{i}"
+    # Ensure captain is a starter (Constraint: captain_decisions[i] <= decisions[i])
+    # This is handled implicitly by the objective function and the fact that captains add value,
+    # but also explicitly linked later.
 
     # Apply captain position constraints based on user selection
     if captain_positions:
-        # Create constraint that captain must be from one of the selected positions
         captain_pos_indices = []
         for pos in captain_positions:
             if pos in pos_indices:
                 captain_pos_indices.extend(pos_indices[pos])
+            else:
+                logging.warning(f"Position '{pos}' selected for captaincy not found in player data.")
 
-        if captain_pos_indices:  # Only add constraint if we have valid positions
+        if captain_pos_indices:
+            # Constraint: The sum of captain variables for players in allowed positions must equal 1
+            # (Since total captains must be 1, this forces the captain to be from this group)
             model += pulp.lpSum(
                 captain_decisions[i] for i in captain_pos_indices
             ) == 1, "Captain_Position_Constraint"
-            logging.info(f"Applied captain position constraint: {', '.join(captain_positions)}")
+            logging.info(f"Applied captain position constraint: Captain must be one of {', '.join(captain_positions)}")
+        else:
+            logging.warning("No players found matching the selected captain positions. Captain constraint not applied.")
+            # If no players match, the model might become infeasible if it strictly requires a captain.
+            # The Single_Captain constraint still exists, so PuLP will likely fail unless this logic is changed.
+    else:
+        logging.warning("No captain positions specified. Captain can be any player.")
+        # If no positions are specified, we don't add the position constraint.
+        # The model will pick the best captain based on the objective function.
 
-    # Linking constraints
+    # Linking constraints (Ensure captain starts, player is starter OR sub)
     for i in range(num_players):
         model += (decisions[i] - captain_decisions[i]) >= 0, f"Captain_Must_Start_{i}"
         model += (decisions[i] + sub_decisions[i]) <= 1, f"Player_Starts_Or_Sub_{i}"
@@ -488,7 +556,7 @@ def select_team(processed_df, sub_factor=0.2, total_budget=100.0, captain_positi
 
 # --- Main Orchestration ---
 
-def run_team_selection(total_budget=100.0, sub_factor=0.2, min_minutes=0, captain_positions=None, feature_weights=None, formation=None):
+def run_team_selection(total_budget=100.0, sub_factor=0.2, min_minutes=0, captain_positions=None, feature_weights=None, formation='any'):
     """Main function to fetch data, process it, and select the team.
 
     Args:
@@ -496,8 +564,8 @@ def run_team_selection(total_budget=100.0, sub_factor=0.2, min_minutes=0, captai
         sub_factor (float): Weighting factor for substitutes' value.
         min_minutes (int): Minimum minutes played filter for players.
         captain_positions (list): List of positions allowed for captain.
-        feature_weights (list): List of features to weight in the final value calculation.
-        formation (str): Preferred formation (e.g., '343', '442').
+        feature_weights (list): List of features categories to weight.
+        formation (str): Preferred formation (e.g., '343', '442', 'any').
 
     Returns:
         tuple: Contains three DataFrames (first_team, subs, captain) or
@@ -507,7 +575,12 @@ def run_team_selection(total_budget=100.0, sub_factor=0.2, min_minutes=0, captai
     if raw_fpl_data is None:
         return None, None, None  # Error logged in get_data_fpl
 
-    processed_data = process_data(raw_fpl_data, min_minutes_played=min_minutes)
+    # Pass feature_weights down to process_data
+    processed_data = process_data(
+        raw_fpl_data,
+        min_minutes_played=min_minutes,
+        feature_weights=feature_weights
+    )
     if processed_data is None or processed_data.empty:
         logging.error("Data processing failed or resulted in empty DataFrame.")
         return None, None, None
@@ -532,21 +605,15 @@ def run_team_selection(total_budget=100.0, sub_factor=0.2, min_minutes=0, captai
     if not sufficient_players:
         logging.warning("Proceeding with selection despite insufficient players in some positions.")
 
-    # Apply feature weights if specified
-    if feature_weights and len(feature_weights) > 0:
-        logging.info(f"Applying feature weights: {feature_weights}")
-        # This is a placeholder for feature weighting logic
-        # In a real implementation, you would modify the Final_value calculation
-        # based on the selected features
-        pass
-
     # Run the optimization
     first_team, subs, captain = select_team(
         processed_data,
         sub_factor=sub_factor,
         total_budget=total_budget,
         captain_positions=captain_positions,
-        formation=formation
+        formation=formation,
+        feature_weights=feature_weights # Pass weights to select_team too if needed later?
+                                        # For now, weights only affect process_data
     )
 
     # select_team logs its own errors if it returns None
