@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for
 # Import the function from your refactored script
-from FPL_AutoBot import run_team_selection 
+from fpl_core_logic import run_team_selection 
 
 app = Flask(__name__)
 
