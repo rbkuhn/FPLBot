@@ -59,39 +59,146 @@ form {
     background-color: #fff;
     padding: 30px;
     border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     margin-top: 20px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group:last-child {
+    margin-bottom: 0;
 }
 
 form label {
     display: block;
     margin-bottom: 8px;
     font-weight: bold;
-    color: #495057;
+    color: #37003c;
 }
 
-form input[type="number"] {
-    width: calc(100% - 24px); /* Full width minus padding */
-    padding: 10px;
-    margin-bottom: 20px;
+.help-text {
+    display: block;
+    font-size: 0.85em;
+    color: #6c757d;
+    margin-top: 4px;
+    margin-bottom: 8px;
+}
+
+form input[type="number"], form select {
+    width: 100%;
+    padding: 10px 12px;
     border: 1px solid #ced4da;
     border-radius: 4px;
-    box-sizing: border-box; /* Include padding in width */
+    box-sizing: border-box;
+    font-size: 16px;
+    transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+form input[type="number"]:focus, form select:focus {
+    border-color: #00a6ae;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(0, 166, 174, 0.25);
+}
+
+form select {
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 16px;
+    padding-right: 30px;
+}
+
+.criteria-section {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 20px;
+    margin: 25px 0;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.criteria-section h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: #37003c;
+    font-size: 1.2em;
+    border-bottom: 2px solid #00a6ae;
+    padding-bottom: 8px;
+    display: inline-block;
+}
+
+.checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    margin-right: 15px;
+    margin-bottom: 10px;
+}
+
+.checkbox-item input[type="checkbox"] {
+    margin-right: 6px;
+    width: 18px;
+    height: 18px;
+    accent-color: #00a6ae;
+}
+
+.checkbox-item label {
+    display: inline;
+    margin: 0;
+    font-weight: normal;
+    color: #333;
+    cursor: pointer;
 }
 
 form button[type="submit"] {
     background-color: #37003c;
     color: white;
-    padding: 12px 20px;
+    padding: 12px 24px;
     border: none;
     border-radius: 4px;
     cursor: pointer;
     font-size: 16px;
-    transition: background-color 0.2s ease-in-out;
+    font-weight: bold;
+    transition: all 0.2s ease-in-out;
+    display: block;
+    margin: 30px auto 0;
+    min-width: 200px;
 }
 
 form button[type="submit"]:hover {
     background-color: #500e54;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+form button[type="submit"]:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .checkbox-group {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .checkbox-item {
+        margin-right: 0;
+    }
+
+    form button[type="submit"] {
+        width: 100%;
+    }
 }
 
 /* Link Styling */
@@ -109,4 +216,37 @@ a:hover {
 p strong {
     font-size: 1.1em;
     color: #333;
-} 
+}
+
+/* Flash Message Styling */
+.flash-messages {
+    list-style: none;
+    padding: 0;
+    margin: 20px 0;
+}
+
+.flash {
+    padding: 15px;
+    margin-bottom: 15px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+.flash.error {
+    color: #721c24;
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+}
+
+.flash.warning {
+    color: #856404;
+    background-color: #fff3cd;
+    border-color: #ffeeba;
+}
+
+.flash.info {
+    color: #0c5460;
+    background-color: #d1ecf1;
+    border-color: #bee5eb;
+}

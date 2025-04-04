@@ -6,47 +6,40 @@
     <title>FPL AutoBot</title>
     <!-- Link to external CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <style>
-        .criteria-section {
-            margin: 20px 0;
-            padding: 15px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            background-color: #f9f9f9;
-        }
-        .criteria-section h3 {
-            margin-top: 0;
-        }
-        .checkbox-group {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        .checkbox-item {
-            margin-right: 15px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-    </style>
 </head>
 <body>
     <h1>Welcome to FPL AutoBot!</h1>
-    <p>This tool helps you select your Fantasy Premier League team.</p>
+
+    {# --- Display Flashed Messages --- #}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+            {# Use category for styling if needed (e.g., 'error', 'warning', 'info') #}
+            <div class="flash {{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    {# ----------------------------- #}
+
+    <p>This tool helps you select an optimal Fantasy Premier League team based on current player statistics and your preferences.</p>
 
     <form action="/select_team" method="post">
         <div class="form-group">
             <label for="budget">Total Budget:</label>
-            <input type="number" id="budget" name="budget" value="100.0" step="0.1" required>
+            <input type="number" id="budget" name="budget" value="100.0" step="0.1" min="50" max="150" required>
+            <span class="help-text">The maximum budget for your 15-player squad (default: 100.0).</span>
         </div>
 
         <div class="form-group">
-            <label for="sub_factor">Substitution Factor (0.0 - 1.0):</label>
+            <label for="sub_factor">Substitution Factor:</label>
             <input type="number" id="sub_factor" name="sub_factor" value="0.2" step="0.1" min="0" max="1" required>
+            <span class="help-text">How much to value substitutes (0.0 - 1.0). Lower values prioritize your starting 11 more.</span>
         </div>
 
         <div class="criteria-section">
-            <h3>Player Selection Criteria</h3>
+            <h3>Advanced Selection Criteria</h3>
 
             <div class="form-group">
                 <label for="min_minutes">Minimum Minutes Played:</label>
@@ -57,10 +50,12 @@
                     <option value="450" selected>At least 5 games (450 min)</option>
                     <option value="810">At least 9 games (810 min)</option>
                 </select>
+                <span class="help-text">Filter out players with limited playing time. Higher values ensure more reliable player data.</span>
             </div>
 
             <div class="form-group">
                 <label>Captain Position:</label>
+                <span class="help-text">Select which positions are eligible for captain. At least one position must be selected.</span>
                 <div class="checkbox-group">
                     <div class="checkbox-item">
                         <input type="checkbox" id="captain_gkp" name="captain_positions" value="GKP">
@@ -83,6 +78,7 @@
 
             <div class="form-group">
                 <label>Feature Weighting:</label>
+                <span class="help-text">Select which player statistics to consider when evaluating players. More selections create a more balanced approach.</span>
                 <div class="checkbox-group">
                     <div class="checkbox-item">
                         <input type="checkbox" id="weight_points" name="feature_weights" value="points" checked>
@@ -108,7 +104,7 @@
             </div>
 
             <div class="form-group">
-                <label>Formation Preference:</label>
+                <label for="formation">Formation Preference:</label>
                 <select id="formation" name="formation">
                     <option value="any" selected>Any Valid Formation</option>
                     <option value="343">3-4-3</option>
@@ -119,11 +115,15 @@
                     <option value="532">5-3-2</option>
                     <option value="541">5-4-1</option>
                 </select>
+                <span class="help-text">Choose a specific formation or allow the optimizer to find the best formation.</span>
             </div>
         </div>
 
         <button type="submit">Select My Team</button>
     </form>
 
+    <footer>
+        <p><small>FPL AutoBot uses linear programming to select an optimal team based on current player statistics and your preferences.</small></p>
+    </footer>
 </body>
 </html>
