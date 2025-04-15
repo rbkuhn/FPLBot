@@ -8,119 +8,119 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <h1>Welcome to FPL AutoBot!</h1>
+    <div class="content-container">
+        <h1>FPL Team Selector</h1>
 
-    {# --- Display Flashed Messages --- #}
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div class="flash-messages">
-          {% for category, message in messages %}
-            {# Use category for styling if needed (e.g., 'error', 'warning', 'info') #}
-            <div class="flash {{ category }}">{{ message }}</div>
-          {% endfor %}
-        </div>
-      {% endif %}
-    {% endwith %}
-    {# ----------------------------- #}
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <ul class=flash-messages>
+            {% for category, message in messages %}
+              <li class="flash {{ category }}">{{ message }}</li>
+            {% endfor %}
+            </ul>
+          {% endif %}
+        {% endwith %}
 
-    <p>This tool helps you select an optimal Fantasy Premier League team based on current player statistics and your preferences.</p>
+        <form action="{{ url_for('select_fpl_team') }}" method="post">
+            <!-- Budget Input -->
+            <div class="form-group">
+                <label for="budget">Total Budget (£m):</label>
+                <span class="help-text">Enter the maximum amount you want to spend (e.g., 100.0).</span>
+                <input type="number" id="budget" name="budget" step="0.1" required value="100.0">
+            </div>
 
-    <form action="/select_team" method="post">
-        <div class="form-group">
-            <label for="budget">Total Budget:</label>
-            <input type="number" id="budget" name="budget" value="100.0" step="0.1" min="50" max="150" required>
-            <span class="help-text">The maximum budget for your 15-player squad (default: 100.0).</span>
-        </div>
+            <!-- Substitution Factor Input -->
+            <div class="form-group">
+                <label for="sub_factor">Substitution Value Factor:</label>
+                <span class="help-text">Adjusts how much value is placed on substitutes (0.0 to 1.0). Lower means less value.</span>
+                <input type="number" id="sub_factor" name="sub_factor" step="0.05" min="0" max="1" required value="0.2">
+            </div>
 
-        <div class="form-group">
-            <label for="sub_factor">Substitution Factor:</label>
-            <input type="number" id="sub_factor" name="sub_factor" value="0.2" step="0.1" min="0" max="1" required>
-            <span class="help-text">How much to value substitutes (0.0 - 1.0). Lower values prioritize your starting 11 more.</span>
-        </div>
-
-        <div class="criteria-section">
-            <h3>Advanced Selection Criteria</h3>
-
+            <!-- Minimum Minutes Played Input -->
             <div class="form-group">
                 <label for="min_minutes">Minimum Minutes Played:</label>
-                <select id="min_minutes" name="min_minutes">
-                    <option value="0">No minimum</option>
-                    <option value="90">At least 1 game (90 min)</option>
-                    <option value="270">At least 3 games (270 min)</option>
-                    <option value="450" selected>At least 5 games (450 min)</option>
-                    <option value="810">At least 9 games (810 min)</option>
+                <span class="help-text">Only include players who have played at least this many minutes.</span>
+                <input type="number" id="min_minutes" name="min_minutes" step="1" min="0" required value="0">
+            </div>
+
+            <!-- Formation Selection -->
+            <div class="form-group">
+                <label for="formation">Preferred Formation:</label>
+                <span class="help-text">Select a specific formation or choose 'any'. The optimizer will adhere to FPL rules regardless.</span>
+                <select id="formation" name="formation">
+                    <option value="any">Any (Default)</option>
+                    <option value="3-4-3">3-4-3</option>
+                    <option value="3-5-2">3-5-2</option>
+                    <option value="4-3-3">4-3-3</option>
+                    <option value="4-4-2">4-4-2</option>
+                    <option value="4-5-1">4-5-1</option>
+                    <option value="5-2-3">5-2-3</option>
+                    <option value="5-3-2">5-3-2</option>
+                    <option value="5-4-1">5-4-1</option>
                 </select>
-                <span class="help-text">Filter out players with limited playing time. Higher values ensure more reliable player data.</span>
             </div>
 
-            <div class="form-group">
-                <label>Captain Position:</label>
-                <span class="help-text">Select which positions are eligible for captain. At least one position must be selected.</span>
-                <div class="checkbox-group">
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="captain_gkp" name="captain_positions" value="GKP">
-                        <label for="captain_gkp">Goalkeeper</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="captain_def" name="captain_positions" value="DEF">
-                        <label for="captain_def">Defender</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="captain_mid" name="captain_positions" value="MID" checked>
-                        <label for="captain_mid">Midfielder</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="captain_fwd" name="captain_positions" value="FWD">
-                        <label for="captain_fwd">Forward</label>
-                    </div>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label>Feature Weighting:</label>
-                <span class="help-text">Select which player statistics to consider when evaluating players. More selections create a more balanced approach.</span>
+            <!-- Feature Weight Selection (Example) -->
+            <div class="criteria-section">
+                <h3>Feature Weighting (Select all that apply):</h3>
+                <span class="help-text">Choose which statistic categories should influence player value. If none are selected, a default balanced approach is used.</span>
                 <div class="checkbox-group">
                     <div class="checkbox-item">
                         <input type="checkbox" id="weight_points" name="feature_weights" value="points" checked>
-                        <label for="weight_points">Points</label>
+                        <label for="weight_points">Points & Bonus</label>
                     </div>
                     <div class="checkbox-item">
                         <input type="checkbox" id="weight_value" name="feature_weights" value="value" checked>
-                        <label for="weight_value">Value (Points/Cost)</label>
+                        <label for="weight_value">Value (Points per Cost)</label>
                     </div>
                     <div class="checkbox-item">
                         <input type="checkbox" id="weight_form" name="feature_weights" value="form" checked>
                         <label for="weight_form">Form</label>
                     </div>
-                    <div class="checkbox-item">
+                     <div class="checkbox-item">
                         <input type="checkbox" id="weight_xg" name="feature_weights" value="expected_goals" checked>
-                        <label for="weight_xg">Expected Goals</label>
+                        <label for="weight_xg">Expected Goals (xG)</label>
                     </div>
                     <div class="checkbox-item">
                         <input type="checkbox" id="weight_xa" name="feature_weights" value="expected_assists" checked>
-                        <label for="weight_xa">Expected Assists</label>
+                        <label for="weight_xa">Expected Assists (xA)</label>
+                    </div>
+                     <div class="checkbox-item">
+                        <input type="checkbox" id="weight_fixtures" name="feature_weights" value="fixtures" checked>
+                        <label for="weight_fixtures">Upcoming Fixtures</label>
+                    </div>
+                    <!-- Add more checkboxes for other features defined in FEATURE_WEIGHT_MAP keys -->
+                </div>
+            </div>
+
+            <!-- Captain Position Selection -->
+            <div class="criteria-section">
+                <h3>Captain Position Priority (Select at least one):</h3>
+                <span class="help-text">Select which positions are preferred for captaincy.</span>
+                <div class="checkbox-group">
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="captain_gkp" name="captain_positions" value="GKP">
+                        <label for="captain_gkp">Goalkeeper (GKP)</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="captain_def" name="captain_positions" value="DEF">
+                        <label for="captain_def">Defender (DEF)</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="captain_mid" name="captain_positions" value="MID" checked>
+                        <label for="captain_mid">Midfielder (MID)</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="captain_fwd" name="captain_positions" value="FWD" checked>
+                        <label for="captain_fwd">Forward (FWD)</label>
                     </div>
                 </div>
             </div>
 
-            <div class="form-group">
-                <label for="formation">Formation Preference:</label>
-                <select id="formation" name="formation">
-                    <option value="any" selected>Any Valid Formation</option>
-                    <option value="343">3-4-3</option>
-                    <option value="352">3-5-2</option>
-                    <option value="433">4-3-3</option>
-                    <option value="442">4-4-2</option>
-                    <option value="451">4-5-1</option>
-                    <option value="532">5-3-2</option>
-                    <option value="541">5-4-1</option>
-                </select>
-                <span class="help-text">Choose a specific formation or allow the optimizer to find the best formation.</span>
-            </div>
-        </div>
-
-        <button type="submit">Select My Team</button>
-    </form>
+            <button type="submit">Select My Team</button>
+        </form>
+    </div>
 
     <footer>
         <p><small>FPL AutoBot uses linear programming to select an optimal team based on current player statistics and your preferences.</small></p>

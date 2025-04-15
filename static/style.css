@@ -1,11 +1,40 @@
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    margin: 40px auto;
-    max-width: 960px;
+    margin: 0; /* Remove default margin for full background */
+    max-width: none; /* Allow body to span full width */
     line-height: 1.6;
-    padding: 0 20px;
+    padding: 0; /* Remove padding for full background */
     color: #333;
-    background-color: #f1f1f1;
+    /* Existing background-color removed/commented to let image show */
+    /* background-color: #f1f1f1; */
+
+    /* Added background image styles */
+    background-image: url('/static/background.jpg');
+    background-size: cover; /* Scale image to cover the entire background */
+    background-position: center center; /* Center the image */
+    background-repeat: no-repeat; /* Do not repeat the image */
+    background-attachment: fixed; /* Keep background fixed during scroll */
+    min-height: 100vh; /* Ensure body takes at least full viewport height */
+}
+
+/* Re-introduce padding and max-width for the main content container */
+.content-container {
+    max-width: 1280px; /* Use the previous max-width for content */
+    margin: 40px auto; /* Center content with vertical margins */
+    padding: 0 20px; /* Horizontal padding */
+    text-align: center; /* Added to center the H1 */
+    /* Optional: Add a semi-transparent background to content if needed for readability */
+    /* background-color: rgba(255, 255, 255, 0.8); */
+    /* border-radius: 8px; */
+}
+
+/* Style H1 for better contrast over background */
+.content-container > h1 {
+    display: inline-block; /* Center alignment respects this */
+    background-color: rgba(255, 255, 255, 0.85); /* Semi-transparent white */
+    padding: 10px 25px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
 h1, h2 {
@@ -24,6 +53,7 @@ h1 {
     margin-bottom: 30px;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    /* REMOVED: overflow-x: auto; */
 }
 
 /* Table Styling */
@@ -250,3 +280,51 @@ p strong {
     background-color: #d1ecf1;
     border-color: #bee5eb;
 }
+
+/* Reduce padding and font size specifically for tables in team-section */
+.team-section .table {
+    font-size: 0.9em; /* Slightly smaller font */
+    width: 100%; /* Ensure table tries to fit container */
+    table-layout: fixed; /* Changed from auto to fixed */
+}
+
+.team-section .table th,
+.team-section .table td {
+    padding: 6px 8px; /* Reduced padding (vertical, horizontal) */
+    word-wrap: break-word; /* Allow long words to break if necessary */
+}
+
+/* Style bottom links/info for better contrast */
+.bottom-links {
+    background-color: rgba(255, 255, 255, 0.85);
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 20px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.bottom-links p {
+    margin-bottom: 10px; /* Space between cost and link */
+}
+
+/* Style the parameter display box */
+.parameters-display {
+    background-color: rgba(255, 255, 255, 0.85);
+    padding: 15px 20px;
+    border-radius: 8px;
+    margin-bottom: 30px; /* Space before team sections */
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.parameters-display h2 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #37003c; /* Match other headings */
+}
+
+.parameters-display p {
+    margin-bottom: 5px; /* Tighter spacing for parameter list */
+}
+
+/* Ensure newline at end of file */

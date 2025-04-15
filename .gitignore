@@ -12,6 +12,7 @@ ENV/
 # IDEs and editors
 .idea/
 .vscode/
+.cursorrules
 
 # Data files
 *.csv

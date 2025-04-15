@@ -8,51 +8,52 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <h1>Your Selected FPL Team</h1>
+    <div class="content-container">
+        <h1>Selected FPL Team</h1>
 
-    {# --- Display Flashed Messages --- #}
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div class="flash-messages">
-          {% for category, message in messages %}
-            <div class="flash {{ category }}">{{ message }}</div>
-          {% endfor %}
+        {# --- Display Flashed Messages --- #}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-messages">
+              {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+        {# ----------------------------- #}
+
+        <!-- Display Parameters Used -->
+        <div class="parameters-display">
+            <h2>Selection Parameters</h2>
+            <p><strong>Budget:</strong> £{{ budget }}m</p>
+            <p><strong>Substitution Factor:</strong> {{ sub_factor }}</p>
+            <p><strong>Minimum Minutes:</strong> {{ min_minutes }}</p>
+            <p><strong>Preferred Captain Positions:</strong> {{ captain_positions | join(', ') }}</p>
+            <p><strong>Feature Weights:</strong> {{ feature_weights | join(', ') if feature_weights else 'Default Balanced' }}</p>
+            <p><strong>Preferred Formation:</strong> {{ formation if formation != 'any' else 'Any Valid Formation' }}</p>
         </div>
-      {% endif %}
-    {% endwith %}
-    {# ----------------------------- #}
 
-    <div class="parameters-summary">
-        <h2>Selection Parameters Used:</h2>
-        <ul>
-            <li>Budget: {{ budget }}m</li>
-            <li>Sub Factor: {{ sub_factor }}</li>
-            <li>Min Minutes: {{ min_minutes }}</li>
-            <li>Formation: {{ formation if formation != 'any' else 'Any Valid' }}</li>
-            <li>Captain Positions: {{ captain_positions | join(', ') }}</li>
-            <li>Feature Weights: {{ feature_weights | join(', ') }}</li>
-        </ul>
+        <div class="team-section">
+            <h2>First Team</h2>
+            {{ first_team_table | safe }}
+        </div>
+
+        <div class="team-section">
+            <h2>Substitutes</h2>
+            {{ subs_table | safe }}
+        </div>
+
+        <div class="team-section">
+            <h2>Captain</h2>
+            {{ captain_table | safe }}
+        </div>
+
+        <!-- Wrap bottom elements for styling -->
+        <div class="bottom-links">
+            <p><strong>Total Cost:</strong> £{{ total_cost }}m</p>
+            <a href="{{ url_for('index') }}">Back to Selection</a>
+        </div>
     </div>
-
-    <div class="team-section">
-        <h2>First Team</h2>
-        <!-- The 'safe' filter tells Jinja2 the HTML is safe to render directly -->
-        {{ first_team_table | safe }}
-    </div>
-
-    <div class="team-section">
-        <h2>Substitutes</h2>
-        {{ subs_table | safe }}
-    </div>
-
-    <div class="team-section">
-        <h2>Captain</h2>
-        {{ captain_table | safe }}
-    </div>
-
-    <p><strong>Total Cost:</strong> {{ total_cost }}</p>
-
-    <a href="{{ url_for('index') }}">Select Again</a>
-
 </body>
 </html> 

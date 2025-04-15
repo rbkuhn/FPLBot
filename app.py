@@ -82,11 +82,53 @@ def select_fpl_team():
         flash("Error: Team selection failed. This might be due to overly strict constraints (e.g., budget too low, invalid formation, not enough players available after filtering) or an API issue. Try adjusting parameters.", category='error')
         return redirect(url_for('index'))
 
+    # --- Reorder columns to move 'Final_value' to the end ---
+    target_col = 'Final_value'
+    if first_team is not None and target_col in first_team.columns:
+        cols = [col for col in first_team.columns if col != target_col] + [target_col]
+        first_team = first_team[cols]
+    if subs is not None and target_col in subs.columns:
+        cols = [col for col in subs.columns if col != target_col] + [target_col]
+        subs = subs[cols]
+    if captain is not None and target_col in captain.columns:
+        cols = [col for col in captain.columns if col != target_col] + [target_col]
+        captain = captain[cols]
+    # --- End Reorder ---
+
+    # --- Rename columns for display ---
+    column_rename_map = {
+        "web_name": "Name",
+        "position": "Pos",
+        "team": "Team",
+        "now_cost": "Cost (£m)",
+        "total_points": "Points",
+        "minutes": "Mins",
+        "form": "Form",
+        "bonus": "Bonus",
+        "bps": "BPS",
+        "expected_goals": "xG",
+        "expected_assists": "xA",
+        "expected_goal_involvements": "xGi",
+        "selected_by_percent": "% Ownership",
+        "avg_fdr_next_5": "Avg FDR", # Assuming this is the fixture column name
+        "Final_value": "Score"
+        # Add other columns if they appear and need renaming
+    }
+
+    if first_team is not None:
+        first_team = first_team.rename(columns=column_rename_map)
+    if subs is not None:
+        subs = subs.rename(columns=column_rename_map)
+    if captain is not None:
+        captain = captain.rename(columns=column_rename_map)
+    # --- End Rename ---
+
     # Convert dataframes to HTML tables for easy rendering in the template
     first_team_html = first_team.to_html(classes='table table-striped', index=False, border=0)
     subs_html = subs.to_html(classes='table table-striped', index=False, border=0)
     captain_html = captain.to_html(classes='table table-striped', index=False, border=0)
-    total_cost = round(first_team['now_cost'].sum() + subs['now_cost'].sum(), 2)
+    # Use the RENAMED column name to calculate total cost
+    total_cost = round(first_team['Cost (£m)'].sum() + subs['Cost (£m)'].sum(), 2)
 
     return render_template('team.html',
                            first_team_table=first_team_html,

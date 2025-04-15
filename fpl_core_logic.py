@@ -7,7 +7,9 @@ import pulp
 import logging
 
 # Configure basic logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 # --- Constants ---
@@ -28,18 +30,20 @@ REQUIRED_COLS = [
     "goals_scored", "assists", "expected_goals", "expected_assists",
     "expected_goal_involvements", "influence", "creativity",
     "threat", "form", "ep_this", "ep_next", "transfers_in_event",
-    "transfers_out_event", "status", "element_type" # Keep status/element_type for processing
+    # Keep status/element_type for processing
+    "transfers_out_event", "status", "element_type"
 ]
 # Map user-friendly weight names to the base feature names
 # (These base names correspond to the first element in FEATURES_TO_ADJUST tuples)
 FEATURE_WEIGHT_MAP = {
     'points': ["total_points", "points_per_minute", "bonus", "bonus_per_minute", "bps", "bps_per_minute"],
     'value': ["points_per_cost", "bonus_per_cost", "bps_per_cost"],
-    'form': ["form"], # Add form_per_cost, form_per_minute if created
+    'form': ["form"],  # Add form_per_cost, form_per_minute if created
     'expected_goals': ["expected_goals", "expected_goals_per_cost", "expected_goals_per_minute", "goals_over_expected"],
     'expected_assists': ["expected_assists", "expected_assists_per_cost", "expected_assists_per_minute", "assists_over_expected"],
-    'fixtures': ["avg_fdr_next_5"], # Added fixtures mapping
-    # Add more mappings as needed, e.g., for involvements, threat, creativity, etc.
+    'fixtures': ["avg_fdr_next_5"],  # Added fixtures mapping
+    # Add more mappings as needed, e.g., for involvements, threat, creativity,
+    # etc.
 }
 # Features to engineer and scale for the final player value calculation.
 # Tuple format: (feature_name, should_higher_be_better?)
@@ -58,9 +62,11 @@ FEATURES_TO_ADJUST = [
     ("goals_scored", True), ("goals_scored_per_cost", True),
     ("goals_scored_per_minute", True), ("assists", True),
     ("assists_per_cost", True), ("assists_per_minute", True),
-    ("goals_over_expected", False), # Lower abs difference is better -> reverse scale
-    ("assists_over_expected", False), # Lower abs difference is better -> reverse scale
-    ("avg_fdr_next_5", False), # Add FDR, lower is better (False)
+    # Lower abs difference is better -> reverse scale
+    ("goals_over_expected", False),
+    # Lower abs difference is better -> reverse scale
+    ("assists_over_expected", False),
+    ("avg_fdr_next_5", False),  # Add FDR, lower is better (False)
 ]
 
 
@@ -90,6 +96,7 @@ def get_data_fpl(url=FPL_API_URL):
         logging.error("Error parsing FPL data: Missing key %s", e)
         return None
 
+
 def get_fixture_data(url=FPL_FIXTURES_URL):
     """Fetches future fixture data from the FPL API.
 
@@ -110,7 +117,7 @@ def get_fixture_data(url=FPL_FIXTURES_URL):
     except requests.exceptions.RequestException as e:
         logging.error("Error fetching FPL fixture data: %s", e)
         return None
-    except ValueError as e: # Catches JSON decoding errors
+    except ValueError as e:  # Catches JSON decoding errors
         logging.error("Error parsing FPL fixture data (JSON): %s", e)
         return None
 
@@ -121,7 +128,8 @@ def _safe_divide(numerator_col, denominator_col, df_in):
     """Helper function for safe division, handling NaNs and zeros in denominator."""
     num = df_in[numerator_col]
     den = df_in[denominator_col]
-    # Replace 0s and NaNs in denominator with NaN, then perform division, then fill resulting NaNs with 0
+    # Replace 0s and NaNs in denominator with NaN, then perform division, then
+    # fill resulting NaNs with 0
     return (num / den.replace(0, np.nan)).fillna(0)
 
 
@@ -159,23 +167,32 @@ def create_adjusted_feature(df, feature_name, higher_is_better=True):
             # If all values are the same, scaling depends on the direction
             # Normal scale: all get 1.0 if max != 0 (already handled), else 0
             # Reversed scale: all get 1.0
-            df.loc[pos_mask, adj_col_name] = 1.0 if not higher_is_better else (1.0 if max_val != 0 else 0.0)
+            df.loc[pos_mask, adj_col_name] = 1.0 if not higher_is_better else (
+                1.0 if max_val != 0 else 0.0)
             continue
 
         # Apply scaling
         if higher_is_better:
             # Normal scaling (0 to 1, higher is better)
-            df.loc[pos_mask, adj_col_name] = (feature_series - min_val) / (max_val - min_val)
+            df.loc[pos_mask, adj_col_name] = (
+                feature_series - min_val) / (max_val - min_val)
         else:
             # Reversed scaling (0 to 1, lower is better)
-            df.loc[pos_mask, adj_col_name] = 1.0 - (feature_series - min_val) / (max_val - min_val)
+            df.loc[pos_mask, adj_col_name] = 1.0 - \
+                (feature_series - min_val) / (max_val - min_val)
 
-    # Ensure any NaNs possibly introduced (though unlikely with checks) are filled
+    # Ensure any NaNs possibly introduced (though unlikely with checks) are
+    # filled
     df[adj_col_name] = df[adj_col_name].fillna(0)
     return df
 
 
-def process_data(raw_df, fixture_df=None, next_gameweek_id=None, min_minutes_played=0, feature_weights=None):
+def process_data(
+        raw_df,
+        fixture_df=None,
+        next_gameweek_id=None,
+        min_minutes_played=0,
+        feature_weights=None):
     """Processes the raw FPL data to prepare it for team selection.
 
     Args:
@@ -190,7 +207,8 @@ def process_data(raw_df, fixture_df=None, next_gameweek_id=None, min_minutes_pla
                       or None if processing fails.
     """
     if raw_df is None or raw_df.empty:
-        logging.warning("Input DataFrame is empty or None. Skipping processing.")
+        logging.warning(
+            "Input DataFrame is empty or None. Skipping processing.")
         return None
 
     logging.info("Processing FPL data...")
@@ -210,19 +228,28 @@ def process_data(raw_df, fixture_df=None, next_gameweek_id=None, min_minutes_pla
     # Check for required RAW columns before proceeding
     missing_cols = [col for col in raw_required_cols if col not in df.columns]
     if missing_cols:
-        logging.error("Missing required columns in raw FPL data: %s", missing_cols)
+        logging.error(
+            "Missing required columns in raw FPL data: %s",
+            missing_cols)
         return None
 
     # --- Pre-process Fixture Data ---
     team_upcoming_fdr = {}
-    num_fixtures_to_consider = 5 # Hardcoded for now, make parameter later
+    num_fixtures_to_consider = 5  # Hardcoded for now, make parameter later
     if fixture_df is not None and not fixture_df.empty and next_gameweek_id is not None:
-        logging.info(f"Processing fixtures for next {num_fixtures_to_consider} gameweeks starting from GW{next_gameweek_id}.")
+        logging.info(
+            f"Processing fixtures for next {num_fixtures_to_consider} gameweeks starting from GW{next_gameweek_id}.")
         try:
             # Ensure necessary columns exist
-            fixture_cols = ['event', 'team_h', 'team_a', 'team_h_difficulty', 'team_a_difficulty']
+            fixture_cols = [
+                'event',
+                'team_h',
+                'team_a',
+                'team_h_difficulty',
+                'team_a_difficulty']
             if not all(col in fixture_df.columns for col in fixture_cols):
-                logging.warning("Fixture data missing required columns. Skipping FDR calculation.")
+                logging.warning(
+                    "Fixture data missing required columns. Skipping FDR calculation.")
             else:
                 # Filter for upcoming gameweeks
                 upcoming_fixtures = fixture_df[
@@ -237,17 +264,22 @@ def process_data(raw_df, fixture_df=None, next_gameweek_id=None, min_minutes_pla
                     h_fdr = row['team_h_difficulty']
                     a_fdr = row['team_a_difficulty']
 
-                    if h_team not in team_upcoming_fdr: team_upcoming_fdr[h_team] = []
-                    if a_team not in team_upcoming_fdr: team_upcoming_fdr[a_team] = []
+                    if h_team not in team_upcoming_fdr:
+                        team_upcoming_fdr[h_team] = []
+                    if a_team not in team_upcoming_fdr:
+                        team_upcoming_fdr[a_team] = []
 
-                    team_upcoming_fdr[h_team].append(a_fdr) # Home team faces away team difficulty
-                    team_upcoming_fdr[a_team].append(h_fdr) # Away team faces home team difficulty
+                    # Home team faces away team difficulty
+                    team_upcoming_fdr[h_team].append(a_fdr)
+                    # Away team faces home team difficulty
+                    team_upcoming_fdr[a_team].append(h_fdr)
 
         except Exception as e:
             logging.error(f"Error processing fixture data: {e}", exc_info=True)
-            team_upcoming_fdr = {} # Reset on error
+            team_upcoming_fdr = {}  # Reset on error
     else:
-        logging.warning("Fixture data or next gameweek ID not available. Skipping FDR calculation.")
+        logging.warning(
+            "Fixture data or next gameweek ID not available. Skipping FDR calculation.")
 
     # --- Initial Filtering and Mapping ---
     # Keep raw team id needed for FDR lookup later
@@ -262,26 +294,35 @@ def process_data(raw_df, fixture_df=None, next_gameweek_id=None, min_minutes_pla
     initial_count = len(df)
     df = df[df['minutes'] >= min_minutes_played].copy()
     logging.info(
-        f"Filtered {initial_count - len(df)} players with < {min_minutes_played} minutes."
-    )
+        f"Filtered {
+            initial_count -
+            len(df)} players with < {min_minutes_played} minutes.")
     logging.info(f"Players remaining for selection: {len(df)}")
     if df.empty:
-        logging.warning("No players remaining after filtering. Cannot proceed.")
+        logging.warning(
+            "No players remaining after filtering. Cannot proceed.")
         return None
 
     # --- Column Selection and Type Conversion ---
     # Select columns needed for processing first
     # Include raw_team_id temporarily for FDR calc
-    cols_for_processing = [col for col in REQUIRED_COLS if col in df.columns] + ['raw_team_id']
+    cols_for_processing = [
+        col for col in REQUIRED_COLS if col in df.columns] + ['raw_team_id']
     if 'position' not in cols_for_processing:
-        logging.error("Critical error: 'position' column not created during mapping.")
+        logging.error(
+            "Critical error: 'position' column not created during mapping.")
         return None
-    df = df[list(set(cols_for_processing))].copy() # Use set to avoid duplicate raw_team_id if error
+    # Use set to avoid duplicate raw_team_id if error
+    df = df[list(set(cols_for_processing))].copy()
 
     numeric_cols = [
-        col for col in df.columns
-        if col not in ["web_name", "position", "team", "status", "element_type", "raw_team_id"]
-    ]
+        col for col in df.columns if col not in [
+            "web_name",
+            "position",
+            "team",
+            "status",
+            "element_type",
+            "raw_team_id"]]
     for col in numeric_cols:
         df[col] = pd.to_numeric(df[col], errors='coerce')
     df.fillna(0, inplace=True)
@@ -289,9 +330,9 @@ def process_data(raw_df, fixture_df=None, next_gameweek_id=None, min_minutes_pla
         df['now_cost'] = df['now_cost'] / 10.0
 
     # --- Calculate Average FDR per Player --- (Moved After Col Selection/Typing)
-    num_fixtures_to_consider = 5 # Keep consistent
+    num_fixtures_to_consider = 5  # Keep consistent
     fdr_col_name = f'avg_fdr_next_{num_fixtures_to_consider}'
-    df[fdr_col_name] = np.nan # Initialize column
+    df[fdr_col_name] = np.nan  # Initialize column
 
     if team_upcoming_fdr:
         # Ensure raw_team_id exists before using it
@@ -301,7 +342,8 @@ def process_data(raw_df, fixture_df=None, next_gameweek_id=None, min_minutes_pla
                 if team_id in team_upcoming_fdr:
                     upcoming_fdr_list = team_upcoming_fdr[team_id]
                     if upcoming_fdr_list:
-                        avg_fdr = sum(upcoming_fdr_list) / len(upcoming_fdr_list)
+                        avg_fdr = sum(upcoming_fdr_list) / \
+                            len(upcoming_fdr_list)
                         df.loc[index, fdr_col_name] = avg_fdr
                 # else: Leave as NaN if team not in fixture lookup
 
@@ -309,13 +351,15 @@ def process_data(raw_df, fixture_df=None, next_gameweek_id=None, min_minutes_pla
             median_fdr = df[fdr_col_name].median()
             fill_value = median_fdr if pd.notna(median_fdr) else 5.0
             df[fdr_col_name] = df[fdr_col_name].fillna(fill_value)
-            logging.info(f"Calculated average FDR for next {num_fixtures_to_consider} games.")
+            logging.info(
+                f"Calculated average FDR for next {num_fixtures_to_consider} games.")
         else:
-            logging.warning("'raw_team_id' column missing after selection. Skipping FDR calculation.")
-            df[fdr_col_name] = df[fdr_col_name].fillna(3.0) # Neutral value
+            logging.warning(
+                "'raw_team_id' column missing after selection. Skipping FDR calculation.")
+            df[fdr_col_name] = df[fdr_col_name].fillna(3.0)  # Neutral value
     else:
         # FDR calculation was skipped earlier
-        df[fdr_col_name] = df[fdr_col_name].fillna(3.0) # Neutral value
+        df[fdr_col_name] = df[fdr_col_name].fillna(3.0)  # Neutral value
 
     # Drop raw_team_id after use
     df.drop(columns=['raw_team_id'], inplace=True, errors='ignore')
@@ -335,21 +379,29 @@ def process_data(raw_df, fixture_df=None, next_gameweek_id=None, min_minutes_pla
     if 'bps' in df.columns and 'minutes' in df.columns:
         df['bps_per_minute'] = _safe_divide('bps', 'minutes', df)
     if 'expected_goals' in df.columns and 'now_cost' in df.columns:
-        df['expected_goals_per_cost'] = _safe_divide('expected_goals', 'now_cost', df)
+        df['expected_goals_per_cost'] = _safe_divide(
+            'expected_goals', 'now_cost', df)
     if 'expected_goals' in df.columns and 'minutes' in df.columns:
-        df['expected_goals_per_minute'] = _safe_divide('expected_goals', 'minutes', df)
+        df['expected_goals_per_minute'] = _safe_divide(
+            'expected_goals', 'minutes', df)
     if 'expected_assists' in df.columns and 'now_cost' in df.columns:
-        df['expected_assists_per_cost'] = _safe_divide('expected_assists', 'now_cost', df)
+        df['expected_assists_per_cost'] = _safe_divide(
+            'expected_assists', 'now_cost', df)
     if 'expected_assists' in df.columns and 'minutes' in df.columns:
-        df['expected_assists_per_minute'] = _safe_divide('expected_assists', 'minutes', df)
+        df['expected_assists_per_minute'] = _safe_divide(
+            'expected_assists', 'minutes', df)
     if 'expected_goal_involvements' in df.columns and 'now_cost' in df.columns:
-        df['expected_goal_involvements_per_cost'] = _safe_divide('expected_goal_involvements', 'now_cost', df)
+        df['expected_goal_involvements_per_cost'] = _safe_divide(
+            'expected_goal_involvements', 'now_cost', df)
     if 'expected_goal_involvements' in df.columns and 'minutes' in df.columns:
-        df['expected_goal_involvements_per_minute'] = _safe_divide('expected_goal_involvements', 'minutes', df)
+        df['expected_goal_involvements_per_minute'] = _safe_divide(
+            'expected_goal_involvements', 'minutes', df)
     if 'goals_scored' in df.columns and 'now_cost' in df.columns:
-        df['goals_scored_per_cost'] = _safe_divide('goals_scored', 'now_cost', df)
+        df['goals_scored_per_cost'] = _safe_divide(
+            'goals_scored', 'now_cost', df)
     if 'goals_scored' in df.columns and 'minutes' in df.columns:
-        df['goals_scored_per_minute'] = _safe_divide('goals_scored', 'minutes', df)
+        df['goals_scored_per_minute'] = _safe_divide(
+            'goals_scored', 'minutes', df)
     if 'assists' in df.columns and 'now_cost' in df.columns:
         df['assists_per_cost'] = _safe_divide('assists', 'now_cost', df)
     if 'assists' in df.columns and 'minutes' in df.columns:
@@ -357,27 +409,32 @@ def process_data(raw_df, fixture_df=None, next_gameweek_id=None, min_minutes_pla
 
     # Calculate absolute difference between actual and expected goals/assists
     if 'goals_scored' in df.columns and 'expected_goals' in df.columns:
-        df["goals_over_expected"] = np.abs(df["goals_scored"] - df["expected_goals"])
+        df["goals_over_expected"] = np.abs(
+            df["goals_scored"] - df["expected_goals"])
     if 'assists' in df.columns and 'expected_assists' in df.columns:
-        df["assists_over_expected"] = np.abs(df["assists"] - df["expected_assists"])
+        df["assists_over_expected"] = np.abs(
+            df["assists"] - df["expected_assists"])
 
     # --- Feature Scaling and Final Value Calculation ---
     logging.info("Scaling features (including FDR)...")
     all_adj_feature_cols = []
     for feature, high_is_good in FEATURES_TO_ADJUST:
         if feature in df.columns:
-            df = create_adjusted_feature(df, feature, higher_is_better=high_is_good)
+            df = create_adjusted_feature(
+                df, feature, higher_is_better=high_is_good)
             all_adj_feature_cols.append(f"{feature}_adj")
             logging.debug(f"Scaled feature: {feature}")
         else:
             # Log warning if base feature (incl. FDR) not found before scaling
-            logging.warning("Feature '%s' not found for scaling adjustment.", feature)
+            logging.warning(
+                "Feature '%s' not found for scaling adjustment.",
+                feature)
 
     # --- Determine Columns for Final Value based on Weights ---
     final_value_cols = []
     if feature_weights:
         logging.info(f"Using feature weights: {feature_weights}")
-        selected_base_features = set() # Use a set to avoid double counting
+        selected_base_features = set()  # Use a set to avoid double counting
         for weight_key in feature_weights:
             if weight_key in FEATURE_WEIGHT_MAP:
                 selected_base_features.update(FEATURE_WEIGHT_MAP[weight_key])
@@ -390,8 +447,10 @@ def process_data(raw_df, fixture_df=None, next_gameweek_id=None, min_minutes_pla
             if adj_col in all_adj_feature_cols:
                 final_value_cols.append(adj_col)
             else:
-                # This might happen if the base feature wasn't in the original df
-                logging.debug(f"Adjusted column '{adj_col}' for weighted feature '{base_feature}' not available.")
+                # This might happen if the base feature wasn't in the original
+                # df
+                logging.debug(
+                    f"Adjusted column '{adj_col}' for weighted feature '{base_feature}' not available.")
 
         # Always include minutes played for basic filtering relevance
         # (Alternative: make 'minutes' its own weight category)
@@ -401,32 +460,48 @@ def process_data(raw_df, fixture_df=None, next_gameweek_id=None, min_minutes_pla
             logging.info("Including 'minutes_adj' in Final Value calculation.")
 
         if not final_value_cols:
-            logging.warning("No adjusted features selected based on weights. Defaulting to all available.")
-            final_value_cols = all_adj_feature_cols # Fallback to all if selection results in none
-    else:
-        logging.info("No feature weights specified, using all available adjusted features.")
-        final_value_cols = all_adj_feature_cols # Default to all if no weights provided
+            logging.warning(
+                "No adjusted features selected based on weights. Defaulting to all available.")
+            # Fallback to all if selection results in none
+            final_value_cols = all_adj_feature_cols
+        else:
+            logging.info(
+                "No feature weights specified, using all available adjusted features.")
+            # Default to all if no weights provided
+            final_value_cols = all_adj_feature_cols
 
     # --- Final Value Calculation ---
     if final_value_cols:
         df['Final_value'] = df[final_value_cols].sum(axis=1)
-        logging.info("Calculated 'Final_value' based on %d features: %s", len(final_value_cols), ", ".join(final_value_cols))
+        logging.info(
+            "Calculated 'Final_value' based on %d features: %s",
+            len(final_value_cols),
+            ", ".join(final_value_cols))
     else:
-        logging.warning("No adjusted features available to calculate Final_value. Setting to 0.")
+        logging.warning(
+            "No adjusted features available to calculate Final_value. Setting to 0.")
         df['Final_value'] = 0.0
 
     # --- Final Column Selection ---
-    # Ensure the new avg_fdr column is available for display if needed
+    # Select columns needed for optimization AND display
+    # Ensure we use the dynamic name
+    fdr_col_name = f'avg_fdr_next_{num_fixtures_to_consider}'
     final_cols_to_keep = [
         "web_name", "position", "team", "now_cost", "total_points", "Final_value",
-        f"avg_fdr_next_{num_fixtures_to_consider}" # Add the calculated FDR column
+        fdr_col_name,  # Keep the calculated FDR column
+        # Add key underlying stats for display
+        "selected_by_percent",
+        "expected_goals",
+        "expected_assists",
+        "expected_goal_involvements"
     ]
     final_cols = [col for col in final_cols_to_keep if col in df.columns]
     if 'Final_value' not in final_cols:
         logging.error("'Final_value' column missing before final selection.")
-        return None # Or handle differently if FDR is critical
+        return None  # Or handle differently if FDR is critical
     if not final_cols:
-        logging.error("None of the essential final columns exist after processing.")
+        logging.error(
+            "None of the essential final columns exist after processing.")
         return None
 
     processed_df = df[final_cols].copy()
@@ -436,7 +511,13 @@ def process_data(raw_df, fixture_df=None, next_gameweek_id=None, min_minutes_pla
 
 # --- Team Selection ---
 
-def select_team(processed_df, sub_factor=0.2, total_budget=100.0, captain_positions=None, formation='any', feature_weights=None):
+def select_team(
+        processed_df,
+        sub_factor=0.2,
+        total_budget=100.0,
+        captain_positions=None,
+        formation='any',
+        feature_weights=None):
     """Selects the optimal FPL team using linear programming.
 
     Args:
@@ -460,7 +541,8 @@ def select_team(processed_df, sub_factor=0.2, total_budget=100.0, captain_positi
         captain_positions = ['MID']
 
     if processed_df is None or processed_df.empty:
-        logging.error("Cannot select team: Processed DataFrame is empty or None.")
+        logging.error(
+            "Cannot select team: Processed DataFrame is empty or None.")
         return None, None, None
     required_cols_opt = ["Final_value", "now_cost", "position", "team"]
     if not all(col in processed_df.columns for col in required_cols_opt):
@@ -470,7 +552,9 @@ def select_team(processed_df, sub_factor=0.2, total_budget=100.0, captain_positi
 
     num_players = len(processed_df)
     if num_players < 15:
-        logging.warning("Warning: Fewer than 15 players available (%d). May not find a valid squad.", num_players)
+        logging.warning(
+            "Warning: Fewer than 15 players available (%d). May not find a valid squad.",
+            num_players)
         # Allow to proceed, but PuLP might fail
 
     logging.info("Setting up team selection optimization problem...")
@@ -493,7 +577,8 @@ def select_team(processed_df, sub_factor=0.2, total_budget=100.0, captain_positi
     ]
 
     # --- Objective Function ---
-    # Maximize total 'Final_value' of starters + captain bonus + scaled value of subs
+    # Maximize total 'Final_value' of starters + captain bonus + scaled value
+    # of subs
     model += pulp.lpSum(
         (captain_decisions[i] + decisions[i] + sub_decisions[i] * sub_factor) * processed_df.iloc[i]['Final_value']
         for i in range(num_players)
@@ -511,14 +596,23 @@ def select_team(processed_df, sub_factor=0.2, total_budget=100.0, captain_positi
     model += pulp.lpSum(sub_decisions) == 4, "Total_Subs"
 
     # Position constraints (for the 15-player squad)
-    pos_indices = {pos: [i for i, p in enumerate(processed_df['position']) if p == pos] for pos in POSITIONS.values()}
-    model += pulp.lpSum(decisions[i] + sub_decisions[i] for i in pos_indices["GKP"]) == 2, "Goalkeepers"
-    model += pulp.lpSum(decisions[i] + sub_decisions[i] for i in pos_indices["DEF"]) == 5, "Defenders"
-    model += pulp.lpSum(decisions[i] + sub_decisions[i] for i in pos_indices["MID"]) == 5, "Midfielders"
-    model += pulp.lpSum(decisions[i] + sub_decisions[i] for i in pos_indices["FWD"]) == 3, "Forwards"
+    pos_indices = {
+        pos: [
+            i for i,
+            p in enumerate(
+                processed_df['position']) if p == pos] for pos in POSITIONS.values()}
+    model += pulp.lpSum(decisions[i] + sub_decisions[i]
+                        for i in pos_indices["GKP"]) == 2, "Goalkeepers"
+    model += pulp.lpSum(decisions[i] + sub_decisions[i]
+                        for i in pos_indices["DEF"]) == 5, "Defenders"
+    model += pulp.lpSum(decisions[i] + sub_decisions[i]
+                        for i in pos_indices["MID"]) == 5, "Midfielders"
+    model += pulp.lpSum(decisions[i] + sub_decisions[i]
+                        for i in pos_indices["FWD"]) == 3, "Forwards"
 
     # Starting lineup formation constraints
-    model += pulp.lpSum(decisions[i] for i in pos_indices["GKP"]) == 1, "Starting_Goalkeeper"
+    model += pulp.lpSum(decisions[i]
+                        for i in pos_indices["GKP"]) == 1, "Starting_Goalkeeper"
 
     # -- Apply specific formation OR default min/max constraints --
     if formation != 'any' and len(formation) == 3 and formation.isdigit():
@@ -526,47 +620,74 @@ def select_team(processed_df, sub_factor=0.2, total_budget=100.0, captain_positi
             num_def = int(formation[0])
             num_mid = int(formation[1])
             num_fwd = int(formation[2])
-            logging.info(f"Applying formation constraint: {num_def}-{num_mid}-{num_fwd}")
+            logging.info(
+                f"Applying formation constraint: {num_def}-{num_mid}-{num_fwd}")
 
             # Validate formation sum (excluding GKP)
             if num_def + num_mid + num_fwd != 10:
-                logging.warning(f"Invalid formation sum ({num_def}+{num_mid}+{num_fwd} != 10). Using default constraints.")
+                logging.warning(
+                    f"Invalid formation sum ({num_def}+{num_mid}+{num_fwd} != 10). Using default constraints.")
                 # Apply default min/max if formation is invalid
-                model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) >= 3, "Min_Starting_Defenders"
-                model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) <= 5, "Max_Starting_Defenders"
-                model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) >= 3, "Min_Starting_Midfielders"
-                model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) <= 5, "Max_Starting_Midfielders"
-                model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) >= 1, "Min_Starting_Forwards"
-                model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) <= 3, "Max_Starting_Forwards"
+                model += pulp.lpSum(decisions[i]
+                                    for i in pos_indices["DEF"]) >= 3, "Min_Starting_Defenders"
+                model += pulp.lpSum(decisions[i]
+                                    for i in pos_indices["DEF"]) <= 5, "Max_Starting_Defenders"
+                model += pulp.lpSum(decisions[i]
+                                    for i in pos_indices["MID"]) >= 3, "Min_Starting_Midfielders"
+                model += pulp.lpSum(decisions[i]
+                                    for i in pos_indices["MID"]) <= 5, "Max_Starting_Midfielders"
+                model += pulp.lpSum(decisions[i]
+                                    for i in pos_indices["FWD"]) >= 1, "Min_Starting_Forwards"
+                model += pulp.lpSum(decisions[i]
+                                    for i in pos_indices["FWD"]) <= 3, "Max_Starting_Forwards"
             else:
                 # Apply exact formation constraints
-                model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) == num_def, f"Formation_{num_def}_DEF"
-                model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) == num_mid, f"Formation_{num_mid}_MID"
-                model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) == num_fwd, f"Formation_{num_fwd}_FWD"
+                model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]
+                                    ) == num_def, f"Formation_{num_def}_DEF"
+                model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]
+                                    ) == num_mid, f"Formation_{num_mid}_MID"
+                model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]
+                                    ) == num_fwd, f"Formation_{num_fwd}_FWD"
 
         except (ValueError, IndexError):
-            logging.warning(f"Could not parse formation string '{formation}'. Using default constraints.")
+            logging.warning(
+                f"Could not parse formation string '{formation}'. Using default constraints.")
             # Apply default min/max if parsing fails
-            model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) >= 3, "Min_Starting_Defenders"
-            model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) <= 5, "Max_Starting_Defenders"
-            model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) >= 3, "Min_Starting_Midfielders"
-            model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) <= 5, "Max_Starting_Midfielders"
-            model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) >= 1, "Min_Starting_Forwards"
-            model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) <= 3, "Max_Starting_Forwards"
+            model += pulp.lpSum(decisions[i]
+                                for i in pos_indices["DEF"]) >= 3, "Min_Starting_Defenders"
+            model += pulp.lpSum(decisions[i]
+                                for i in pos_indices["DEF"]) <= 5, "Max_Starting_Defenders"
+            model += pulp.lpSum(decisions[i]
+                                for i in pos_indices["MID"]) >= 3, "Min_Starting_Midfielders"
+            model += pulp.lpSum(decisions[i]
+                                for i in pos_indices["MID"]) <= 5, "Max_Starting_Midfielders"
+            model += pulp.lpSum(decisions[i]
+                                for i in pos_indices["FWD"]) >= 1, "Min_Starting_Forwards"
+            model += pulp.lpSum(decisions[i]
+                                for i in pos_indices["FWD"]) <= 3, "Max_Starting_Forwards"
     else:
         # Apply default min/max if formation is 'any' or invalid format
         if formation != 'any':
-             logging.warning(f"Invalid formation format '{formation}'. Using default constraints.")
-        model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) >= 3, "Min_Starting_Defenders"
-        model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) <= 5, "Max_Starting_Defenders"
-        model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) >= 3, "Min_Starting_Midfielders"
-        model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) <= 5, "Max_Starting_Midfielders"
-        model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) >= 1, "Min_Starting_Forwards"
-        model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) <= 3, "Max_Starting_Forwards"
+            logging.warning(
+                f"Invalid formation format '{formation}'. Using default constraints.")
+        model += pulp.lpSum(decisions[i]
+                            for i in pos_indices["DEF"]) >= 3, "Min_Starting_Defenders"
+        model += pulp.lpSum(decisions[i]
+                            for i in pos_indices["DEF"]) <= 5, "Max_Starting_Defenders"
+        model += pulp.lpSum(decisions[i]
+                            for i in pos_indices["MID"]) >= 3, "Min_Starting_Midfielders"
+        model += pulp.lpSum(decisions[i]
+                            for i in pos_indices["MID"]) <= 5, "Max_Starting_Midfielders"
+        model += pulp.lpSum(decisions[i]
+                            for i in pos_indices["FWD"]) >= 1, "Min_Starting_Forwards"
+        model += pulp.lpSum(decisions[i]
+                            for i in pos_indices["FWD"]) <= 3, "Max_Starting_Forwards"
 
     # Club constraint (max 3 players per team in the 15-player squad)
     for team_name in processed_df.team.unique():
-        team_indices = [i for i, t in enumerate(processed_df['team']) if t == team_name]
+        team_indices = [
+            i for i, t in enumerate(
+                processed_df['team']) if t == team_name]
         model += pulp.lpSum(
             decisions[i] + sub_decisions[i] for i in team_indices
         ) <= 3, f"Max_3_Players_{team_name.replace(' ', '_')}"
@@ -584,7 +705,8 @@ def select_team(processed_df, sub_factor=0.2, total_budget=100.0, captain_positi
             if pos in pos_indices:
                 captain_pos_indices.extend(pos_indices[pos])
             else:
-                logging.warning(f"Position '{pos}' selected for captaincy not found in player data.")
+                logging.warning(
+                    f"Position '{pos}' selected for captaincy not found in player data.")
 
         if captain_pos_indices:
             # Constraint: The sum of captain variables for players in allowed positions must equal 1
@@ -592,20 +714,27 @@ def select_team(processed_df, sub_factor=0.2, total_budget=100.0, captain_positi
             model += pulp.lpSum(
                 captain_decisions[i] for i in captain_pos_indices
             ) == 1, "Captain_Position_Constraint"
-            logging.info(f"Applied captain position constraint: Captain must be one of {', '.join(captain_positions)}")
+            logging.info(
+                f"Applied captain position constraint: Captain must be one of {
+                    ', '.join(captain_positions)}")
         else:
-            logging.warning("No players found matching the selected captain positions. Captain constraint not applied.")
+            logging.warning(
+                "No players found matching the selected captain positions. Captain constraint not applied.")
             # If no players match, the model might become infeasible if it strictly requires a captain.
-            # The Single_Captain constraint still exists, so PuLP will likely fail unless this logic is changed.
+            # The Single_Captain constraint still exists, so PuLP will likely
+            # fail unless this logic is changed.
     else:
-        logging.warning("No captain positions specified. Captain can be any player.")
+        logging.warning(
+            "No captain positions specified. Captain can be any player.")
         # If no positions are specified, we don't add the position constraint.
         # The model will pick the best captain based on the objective function.
 
     # Linking constraints (Ensure captain starts, player is starter OR sub)
     for i in range(num_players):
-        model += (decisions[i] - captain_decisions[i]) >= 0, f"Captain_Must_Start_{i}"
-        model += (decisions[i] + sub_decisions[i]) <= 1, f"Player_Starts_Or_Sub_{i}"
+        model += (decisions[i] - captain_decisions[i]
+                  ) >= 0, f"Captain_Must_Start_{i}"
+        model += (decisions[i] + sub_decisions[i]
+                  ) <= 1, f"Player_Starts_Or_Sub_{i}"
 
     # --- Solve ---
     logging.info("Solving optimization problem...")
@@ -615,8 +744,11 @@ def select_team(processed_df, sub_factor=0.2, total_budget=100.0, captain_positi
         logging.info("Solver status: %s", pulp.LpStatus[status])
 
         if pulp.LpStatus[status] != 'Optimal':
-            logging.warning("Optimal solution not found. Status: %s", pulp.LpStatus[status])
-            # Optionally, try relaxing constraints or analyze the model if infeasible
+            logging.warning(
+                "Optimal solution not found. Status: %s",
+                pulp.LpStatus[status])
+            # Optionally, try relaxing constraints or analyze the model if
+            # infeasible
             return None, None, None
 
     except Exception as e:
@@ -625,20 +757,33 @@ def select_team(processed_df, sub_factor=0.2, total_budget=100.0, captain_positi
 
     # --- Extract Results ---
     logging.info("Extracting selected team...")
-    player_indices = [i for i in range(num_players) if decisions[i].varValue > 0.9] # Use varValue for float results
-    sub_player_indices = [i for i in range(num_players) if sub_decisions[i].varValue > 0.9]
-    cap_player_indices = [i for i in range(num_players) if captain_decisions[i].varValue > 0.9]
+    # Use varValue for float results
+    player_indices = [i for i in range(
+        num_players) if decisions[i].varValue > 0.9]
+    sub_player_indices = [i for i in range(
+        num_players) if sub_decisions[i].varValue > 0.9]
+    cap_player_indices = [i for i in range(
+        num_players) if captain_decisions[i].varValue > 0.9]
 
     # Basic validation
-    if len(player_indices) != 11 or len(sub_player_indices) != 4 or len(cap_player_indices) != 1:
-         logging.error("Error: Optimization result has incorrect number of players/captain.")
-         logging.error(f"Starters: {len(player_indices)}, Subs: {len(sub_player_indices)}, Captain: {len(cap_player_indices)}")
-         # Consider returning the partial results or None
-         return None, None, None
+    if len(player_indices) != 11 or len(
+            sub_player_indices) != 4 or len(cap_player_indices) != 1:
+        logging.error(
+            "Error: Optimization result has incorrect number of players/captain.")
+        logging.error(
+            f"Starters: {
+                len(player_indices)}, Subs: {
+                len(sub_player_indices)}, Captain: {
+                len(cap_player_indices)}")
+        # Consider returning the partial results or None
+        return None, None, None
 
-    first_team_df = processed_df.iloc[player_indices].sort_values(by="position", ascending=False)
-    subs_df = processed_df.iloc[sub_player_indices].sort_values(by="position", ascending=False)
-    captain_df = processed_df.iloc[cap_player_indices] # Captain is usually just one player
+    first_team_df = processed_df.iloc[player_indices].sort_values(
+        by="position", ascending=False)
+    subs_df = processed_df.iloc[sub_player_indices].sort_values(
+        by="position", ascending=False)
+    # Captain is usually just one player
+    captain_df = processed_df.iloc[cap_player_indices]
 
     logging.info("Team selection complete.")
     return first_team_df, subs_df, captain_df
@@ -646,7 +791,13 @@ def select_team(processed_df, sub_factor=0.2, total_budget=100.0, captain_positi
 
 # --- Main Orchestration ---
 
-def run_team_selection(total_budget=100.0, sub_factor=0.2, min_minutes=0, captain_positions=None, feature_weights=None, formation='any'):
+def run_team_selection(
+        total_budget=100.0,
+        sub_factor=0.2,
+        min_minutes=0,
+        captain_positions=None,
+        feature_weights=None,
+        formation='any'):
     """Main function to fetch data, process it, and select the team.
 
     Args:
@@ -683,9 +834,11 @@ def run_team_selection(total_budget=100.0, sub_factor=0.2, min_minutes=0, captai
                 next_gameweek_id = event.get('id')
                 break
         if next_gameweek_id is None:
-            logging.warning("Could not determine the next gameweek from bootstrap data.")
+            logging.warning(
+                "Could not determine the next gameweek from bootstrap data.")
             # Handle this case - maybe default to GW1 or fail?
-            # For now, let's try to proceed but FDR calculation will likely fail.
+            # For now, let's try to proceed but FDR calculation will likely
+            # fail.
         else:
             logging.info(f"Next gameweek identified: {next_gameweek_id}")
     except Exception as e:
@@ -698,9 +851,9 @@ def run_team_selection(total_budget=100.0, sub_factor=0.2, min_minutes=0, captai
 
     # Pass feature_weights down to process_data
     processed_data = process_data(
-        raw_player_data, # Use extracted player data
-        fixture_df=fixture_df, # Pass fixture data
-        next_gameweek_id=next_gameweek_id, # Pass next gameweek ID
+        raw_player_data,  # Use extracted player data
+        fixture_df=fixture_df,  # Pass fixture data
+        next_gameweek_id=next_gameweek_id,  # Pass next gameweek ID
         min_minutes_played=min_minutes,
         feature_weights=feature_weights
     )
@@ -726,7 +879,8 @@ def run_team_selection(total_budget=100.0, sub_factor=0.2, min_minutes=0, captai
             # return None, None, None
 
     if not sufficient_players:
-        logging.warning("Proceeding with selection despite insufficient players in some positions.")
+        logging.warning(
+            "Proceeding with selection despite insufficient players in some positions.")
 
     # Run the optimization
     first_team, subs, captain = select_team(
@@ -735,8 +889,8 @@ def run_team_selection(total_budget=100.0, sub_factor=0.2, min_minutes=0, captai
         total_budget=total_budget,
         captain_positions=captain_positions,
         formation=formation,
-        feature_weights=feature_weights # Pass weights to select_team too if needed later?
-                                        # For now, weights only affect process_data
+        feature_weights=feature_weights  # Pass weights to select_team too if needed later?
+        # For now, weights only affect process_data
     )
 
     # select_team logs its own errors if it returns None
@@ -748,7 +902,8 @@ if __name__ == '__main__':
     logging.info("--- Running FPL Core Logic Directly (Test Mode) ---")
     test_budget = 100.0
     test_sub_factor = 0.2
-    test_min_minutes = 90 * 5 # Example: filter for players with at least 5 games worth of minutes
+    # Example: filter for players with at least 5 games worth of minutes
+    test_min_minutes = 90 * 5
 
     ft, sb, cap = run_team_selection(
         total_budget=test_budget,
@@ -769,13 +924,16 @@ if __name__ == '__main__':
         print(cap)
 
         total_cost = round(ft['now_cost'].sum() + sb['now_cost'].sum(), 2)
-        total_points = ft['total_points'].sum() # Summing points of starters only
-        captain_points_bonus = cap['total_points'].iloc[0] # Add captain points once more
+        # Summing points of starters only
+        total_points = ft['total_points'].sum()
+        # Add captain points once more
+        captain_points_bonus = cap['total_points'].iloc[0]
         total_display_points = total_points + captain_points_bonus
 
         print("\n--- Summary ---")
         print(f"Total Cost: {total_cost:.1f}m")
-        print(f"Total Points (Starters + Captain): {total_display_points}") # This is season total, not predicted
+        # This is season total, not predicted
+        print(f"Total Points (Starters + Captain): {total_display_points}")
     else:
         print("\n--- Team selection failed. Check logs above for errors. ---")
     logging.info("--- FPL Core Logic Direct Run Finished ---")
