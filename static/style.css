@@ -327,4 +327,20 @@ p strong {
     margin-bottom: 5px; /* Tighter spacing for parameter list */
 }
 
+/* Style for the introductory paragraph on index.html */
+.intro-paragraph {
+    display: flex; /* Changed from inline-block */
+    justify-content: space-between; /* Push items to ends */
+    align-items: center; /* Vertically align items */
+    background-color: rgba(255, 255, 255, 0.85);
+    padding: 15px 25px;
+    border-radius: 8px;
+    margin-top: 20px;
+    margin-bottom: 30px; /* Space before form */
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    max-width: 80%; /* Prevent it being too wide */
+    margin-left: auto; /* Required for centering block/flex elements */
+    margin-right: auto; /* Required for centering block/flex elements */
+}
+
 /* Ensure newline at end of file */
