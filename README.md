@@ -77,6 +77,7 @@ A Flask web application to help select an optimal Fantasy Premier League (FPL) t
 
 ## Future Enhancements
 
+*   **Transfer Suggestions:** Allow users to input their FPL Team ID, fetch their current squad, and suggest optimal transfers (out/in) based on the app's player valuation logic.
 *   **Differential Value:** Add an option to boost the value of low-ownership players.
 *   **BGW/DGW Handling:** Add features to help plan for blank and double gameweeks (e.g., excluding players with blanks).
 *   **Injury/Status Display:** Show player status (injured, doubtful) and news more prominently in the results.
