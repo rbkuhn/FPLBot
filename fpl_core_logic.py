@@ -614,74 +614,50 @@ def select_team(
     model += pulp.lpSum(decisions[i]
                         for i in pos_indices["GKP"]) == 1, "Starting_Goalkeeper"
 
-    # -- Apply specific formation OR default min/max constraints --
-    if formation != 'any' and len(formation) == 3 and formation.isdigit():
+    # --- Formation Constraints ---
+    # Always require 1 GKP starter (handled below)
+    # Always require 11 total starters (already defined before this block)
+    # model += pulp.lpSum(decisions) == 11, "Total Starters" # REMOVE DUPLICATE
+
+    # Parse and apply DEF/MID/FWD starter constraints based on formation
+    num_def, num_mid, num_fwd = None, None, None
+    valid_specific_formation = False
+
+    if formation and formation != 'any':
         try:
-            num_def = int(formation[0])
-            num_mid = int(formation[1])
-            num_fwd = int(formation[2])
-            logging.info(
-                f"Applying formation constraint: {num_def}-{num_mid}-{num_fwd}")
-
-            # Validate formation sum (excluding GKP)
-            if num_def + num_mid + num_fwd != 10:
-                logging.warning(
-                    f"Invalid formation sum ({num_def}+{num_mid}+{num_fwd} != 10). Using default constraints.")
-                # Apply default min/max if formation is invalid
-                model += pulp.lpSum(decisions[i]
-                                    for i in pos_indices["DEF"]) >= 3, "Min_Starting_Defenders"
-                model += pulp.lpSum(decisions[i]
-                                    for i in pos_indices["DEF"]) <= 5, "Max_Starting_Defenders"
-                model += pulp.lpSum(decisions[i]
-                                    for i in pos_indices["MID"]) >= 3, "Min_Starting_Midfielders"
-                model += pulp.lpSum(decisions[i]
-                                    for i in pos_indices["MID"]) <= 5, "Max_Starting_Midfielders"
-                model += pulp.lpSum(decisions[i]
-                                    for i in pos_indices["FWD"]) >= 1, "Min_Starting_Forwards"
-                model += pulp.lpSum(decisions[i]
-                                    for i in pos_indices["FWD"]) <= 3, "Max_Starting_Forwards"
+            parts = list(map(int, formation.split('-')))
+            if len(parts) == 3:
+                num_def, num_mid, num_fwd = parts
+                # Check FPL rules for the specific formation
+                if (num_def >= 3 and num_mid >= 2 and num_fwd >= 1 and
+                        num_def + num_mid + num_fwd == 10):
+                    valid_specific_formation = True
+                    logging.info(f"Applying specific formation constraints: {num_def}-{num_mid}-{num_fwd}")
+                else:
+                    logging.warning(f"Invalid FPL formation specified ({formation}). Sum might be wrong or minimums not met. Reverting to standard rules.")
             else:
-                # Apply exact formation constraints
-                model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]
-                                    ) == num_def, f"Formation_{num_def}_DEF"
-                model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]
-                                    ) == num_mid, f"Formation_{num_mid}_MID"
-                model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]
-                                    ) == num_fwd, f"Formation_{num_fwd}_FWD"
+                logging.warning(f"Invalid formation format ({formation}). Expected D-M-F. Reverting to standard rules.")
+        except ValueError:
+            logging.warning(f"Could not parse formation ({formation}). Reverting to standard rules.")
+        except Exception as e:
+            logging.warning(f"Error processing formation ({formation}): {e}. Reverting to standard rules.")
 
-        except (ValueError, IndexError):
-            logging.warning(
-                f"Could not parse formation string '{formation}'. Using default constraints.")
-            # Apply default min/max if parsing fails
-            model += pulp.lpSum(decisions[i]
-                                for i in pos_indices["DEF"]) >= 3, "Min_Starting_Defenders"
-            model += pulp.lpSum(decisions[i]
-                                for i in pos_indices["DEF"]) <= 5, "Max_Starting_Defenders"
-            model += pulp.lpSum(decisions[i]
-                                for i in pos_indices["MID"]) >= 3, "Min_Starting_Midfielders"
-            model += pulp.lpSum(decisions[i]
-                                for i in pos_indices["MID"]) <= 5, "Max_Starting_Midfielders"
-            model += pulp.lpSum(decisions[i]
-                                for i in pos_indices["FWD"]) >= 1, "Min_Starting_Forwards"
-            model += pulp.lpSum(decisions[i]
-                                for i in pos_indices["FWD"]) <= 3, "Max_Starting_Forwards"
+    # Apply EITHER specific OR general constraints
+    if valid_specific_formation:
+        model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) == num_def, f"Num DEF Starters = {num_def}"
+        model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) == num_mid, f"Num MID Starters = {num_mid}"
+        model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) == num_fwd, f"Num FWD Starters = {num_fwd}"
     else:
-        # Apply default min/max if formation is 'any' or invalid format
         if formation != 'any':
-            logging.warning(
-                f"Invalid formation format '{formation}'. Using default constraints.")
-        model += pulp.lpSum(decisions[i]
-                            for i in pos_indices["DEF"]) >= 3, "Min_Starting_Defenders"
-        model += pulp.lpSum(decisions[i]
-                            for i in pos_indices["DEF"]) <= 5, "Max_Starting_Defenders"
-        model += pulp.lpSum(decisions[i]
-                            for i in pos_indices["MID"]) >= 3, "Min_Starting_Midfielders"
-        model += pulp.lpSum(decisions[i]
-                            for i in pos_indices["MID"]) <= 5, "Max_Starting_Midfielders"
-        model += pulp.lpSum(decisions[i]
-                            for i in pos_indices["FWD"]) >= 1, "Min_Starting_Forwards"
-        model += pulp.lpSum(decisions[i]
-                            for i in pos_indices["FWD"]) <= 3, "Max_Starting_Forwards"
+             # Log if we intended a specific formation but it was invalid
+             logging.info("Applying standard FPL formation rules (min 3 DEF, min 2 MID, min 1 FWD) as fallback.")
+        else:
+             logging.info("Applying standard FPL formation rules (min 3 DEF, min 2 MID, min 1 FWD).")
+        # Standard FPL minimums for starting lineup
+        model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) >= 3, "Min DEF Starters >= 3"
+        model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) >= 2, "Min MID Starters >= 2"
+        model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) >= 1, "Min FWD Starters >= 1"
+    # --- End Formation Constraints ---
 
     # Club constraint (max 3 players per team in the 15-player squad)
     for team_name in processed_df.team.unique():

@@ -11,13 +11,13 @@ A Flask web application to help select an optimal Fantasy Premier League (FPL) t
     *   Total budget.
     *   Substitution factor (how much to value bench players).
     *   Minimum minutes played filter.
-    *   Preferred formation (e.g., 3-4-3, 4-4-2) or allow any valid formation.
+    *   Preferred formation (e.g., 3-4-3, 4-4-2), correctly enforced, or allows any valid formation.
     *   Allowed positions for captain selection.
     *   Weighting of different feature categories (points, value, form, expected stats, fixtures) in the player valuation (`Final_value`).
 *   Adheres to FPL constraints:
     *   Budget limit.
     *   Squad composition (2 GKP, 5 DEF, 5 MID, 3 FWD).
-    *   Starting lineup formation rules (dynamic based on preference or standard rules).
+    *   Starting lineup formation rules (applies standard rules or the specific valid formation requested).
     *   Maximum 3 players per club.
     *   Selects a Captain from allowed positions.
 *   **Web Interface (UI/UX Enhancements):**
@@ -65,9 +65,9 @@ A Flask web application to help select an optimal Fantasy Premier League (FPL) t
     python app.py
     ```
 3.  **Open your web browser** and navigate to `http://127.0.0.1:5000` (or the address provided in the terminal).
-4.  **Enter your desired criteria** using the form (Budget, Sub Factor, Min Minutes, Captain Positions, Feature Weights including 'Fixtures', Formation Preference).
+4.  **Enter your desired criteria** using the form (Budget, Sub Factor, Min Minutes, Captain Positions, Feature Weights, Formation Preference).
 5.  **Click "Select My Team"**.
-6.  The application will fetch data, perform the optimization based on your inputs, and display the selected First Team, Substitutes, Captain, total cost, parameters used, and various player stats with readable headers.
+6.  The application will fetch data, perform the optimization based on your inputs (correctly applying the chosen formation), and display the selected First Team, Substitutes, Captain, total cost, parameters used, and various player stats with readable headers.
 
 ## Notes
 
