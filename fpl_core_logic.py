@@ -12,6 +12,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # --- Constants ---
 FPL_API_URL = "https://fantasy.premierleague.com/api/bootstrap-static/"
+FPL_FIXTURES_URL = "https://fantasy.premierleague.com/api/fixtures/"
 POSITIONS = {1: "GKP", 2: "DEF", 3: "MID", 4: "FWD"}
 TEAMS = {
     1: "Arsenal", 2: "Villa", 3: "Bournemouth", 4: "Brentford", 5: "Brighton",
@@ -37,6 +38,7 @@ FEATURE_WEIGHT_MAP = {
     'form': ["form"], # Add form_per_cost, form_per_minute if created
     'expected_goals': ["expected_goals", "expected_goals_per_cost", "expected_goals_per_minute", "goals_over_expected"],
     'expected_assists': ["expected_assists", "expected_assists_per_cost", "expected_assists_per_minute", "assists_over_expected"],
+    'fixtures': ["avg_fdr_next_5"], # Added fixtures mapping
     # Add more mappings as needed, e.g., for involvements, threat, creativity, etc.
 }
 # Features to engineer and scale for the final player value calculation.
@@ -57,7 +59,8 @@ FEATURES_TO_ADJUST = [
     ("goals_scored_per_minute", True), ("assists", True),
     ("assists_per_cost", True), ("assists_per_minute", True),
     ("goals_over_expected", False), # Lower abs difference is better -> reverse scale
-    ("assists_over_expected", False) # Lower abs difference is better -> reverse scale
+    ("assists_over_expected", False), # Lower abs difference is better -> reverse scale
+    ("avg_fdr_next_5", False), # Add FDR, lower is better (False)
 ]
 
 
@@ -78,13 +81,37 @@ def get_data_fpl(url=FPL_API_URL):
         response = requests.get(url, timeout=10)
         response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
         json_data = response.json()
-        logging.info("Successfully fetched FPL data.")
-        return pd.DataFrame(json_data['elements'])
+        logging.info("Successfully fetched FPL bootstrap data.")
+        return json_data
     except requests.exceptions.RequestException as e:
         logging.error("Error fetching FPL data: %s", e)
         return None
     except KeyError as e:
         logging.error("Error parsing FPL data: Missing key %s", e)
+        return None
+
+def get_fixture_data(url=FPL_FIXTURES_URL):
+    """Fetches future fixture data from the FPL API.
+
+    Args:
+        url (str): The URL for the FPL fixtures endpoint.
+
+    Returns:
+        pd.DataFrame: A DataFrame containing fixture information,
+                      or None if fetching fails.
+    """
+    logging.info("Getting FPL fixture data from %s ...", url)
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        fixtures_data = response.json()
+        logging.info("Successfully fetched FPL fixture data.")
+        return pd.DataFrame(fixtures_data)
+    except requests.exceptions.RequestException as e:
+        logging.error("Error fetching FPL fixture data: %s", e)
+        return None
+    except ValueError as e: # Catches JSON decoding errors
+        logging.error("Error parsing FPL fixture data (JSON): %s", e)
         return None
 
 
@@ -148,15 +175,15 @@ def create_adjusted_feature(df, feature_name, higher_is_better=True):
     return df
 
 
-def process_data(raw_df, min_minutes_played=0, feature_weights=None):
+def process_data(raw_df, fixture_df=None, next_gameweek_id=None, min_minutes_played=0, feature_weights=None):
     """Processes the raw FPL data to prepare it for team selection.
 
     Args:
-        raw_df (pd.DataFrame): Raw DataFrame from get_data_fpl.
+        raw_df (pd.DataFrame): Raw DataFrame from get_data_fpl ('elements').
+        fixture_df (pd.DataFrame, optional): Fixture DataFrame from get_fixture_data.
+        next_gameweek_id (int, optional): ID of the next gameweek.
         min_minutes_played (int): Minimum minutes player must have played.
-        feature_weights (list, optional): User-selected feature categories
-                                          (e.g., ['points', 'value']).
-                                          If None or empty, all features used.
+        feature_weights (list, optional): User-selected feature categories.
 
     Returns:
         pd.DataFrame: Processed DataFrame ready for optimization,
@@ -186,52 +213,112 @@ def process_data(raw_df, min_minutes_played=0, feature_weights=None):
         logging.error("Missing required columns in raw FPL data: %s", missing_cols)
         return None
 
-    # --- Initial Filtering and Mapping ---
-    # Map team IDs to names using 'team' column from raw data
-    df['team'] = df['team'].map(TEAMS).fillna('Unknown Team')
-    # Map element type to position name using 'element_type' column
-    df['position'] = df['element_type'].map(POSITIONS).fillna('Unknown Pos')
+    # --- Pre-process Fixture Data ---
+    team_upcoming_fdr = {}
+    num_fixtures_to_consider = 5 # Hardcoded for now, make parameter later
+    if fixture_df is not None and not fixture_df.empty and next_gameweek_id is not None:
+        logging.info(f"Processing fixtures for next {num_fixtures_to_consider} gameweeks starting from GW{next_gameweek_id}.")
+        try:
+            # Ensure necessary columns exist
+            fixture_cols = ['event', 'team_h', 'team_a', 'team_h_difficulty', 'team_a_difficulty']
+            if not all(col in fixture_df.columns for col in fixture_cols):
+                logging.warning("Fixture data missing required columns. Skipping FDR calculation.")
+            else:
+                # Filter for upcoming gameweeks
+                upcoming_fixtures = fixture_df[
+                    (fixture_df['event'] >= next_gameweek_id) &
+                    (fixture_df['event'] < next_gameweek_id + num_fixtures_to_consider)
+                ].copy()
 
-    # Filter unavailable players ('status' == 'a')
+                # Create a lookup: team_id -> list of FDR scores
+                for _, row in upcoming_fixtures.iterrows():
+                    h_team = row['team_h']
+                    a_team = row['team_a']
+                    h_fdr = row['team_h_difficulty']
+                    a_fdr = row['team_a_difficulty']
+
+                    if h_team not in team_upcoming_fdr: team_upcoming_fdr[h_team] = []
+                    if a_team not in team_upcoming_fdr: team_upcoming_fdr[a_team] = []
+
+                    team_upcoming_fdr[h_team].append(a_fdr) # Home team faces away team difficulty
+                    team_upcoming_fdr[a_team].append(h_fdr) # Away team faces home team difficulty
+
+        except Exception as e:
+            logging.error(f"Error processing fixture data: {e}", exc_info=True)
+            team_upcoming_fdr = {} # Reset on error
+    else:
+        logging.warning("Fixture data or next gameweek ID not available. Skipping FDR calculation.")
+
+    # --- Initial Filtering and Mapping ---
+    # Keep raw team id needed for FDR lookup later
+    df['raw_team_id'] = df['team']
+    df['team'] = df['team'].map(TEAMS).fillna('Unknown Team')
+    df['position'] = df['element_type'].map(POSITIONS).fillna('Unknown Pos')
+    # Filter status
     initial_count = len(df)
     df = df[df['status'] == 'a'].copy()
     logging.info(f"Filtered {initial_count - len(df)} unavailable players.")
-
-    # Filter by minutes played
+    # Filter minutes
     initial_count = len(df)
     df = df[df['minutes'] >= min_minutes_played].copy()
     logging.info(
         f"Filtered {initial_count - len(df)} players with < {min_minutes_played} minutes."
     )
     logging.info(f"Players remaining for selection: {len(df)}")
-
     if df.empty:
         logging.warning("No players remaining after filtering. Cannot proceed.")
         return None
 
     # --- Column Selection and Type Conversion ---
-    # Select columns needed for processing (including newly created 'position' and 'team')
-    # Use the original REQUIRED_COLS list which includes 'position' and transformed 'team'
-    cols_for_processing = [col for col in REQUIRED_COLS if col in df.columns]
-    # Ensure 'position' was successfully created
+    # Select columns needed for processing first
+    # Include raw_team_id temporarily for FDR calc
+    cols_for_processing = [col for col in REQUIRED_COLS if col in df.columns] + ['raw_team_id']
     if 'position' not in cols_for_processing:
         logging.error("Critical error: 'position' column not created during mapping.")
         return None
-    df = df[cols_for_processing].copy()
+    df = df[list(set(cols_for_processing))].copy() # Use set to avoid duplicate raw_team_id if error
 
     numeric_cols = [
         col for col in df.columns
-        if col not in ["web_name", "position", "team", "status", "element_type"]
+        if col not in ["web_name", "position", "team", "status", "element_type", "raw_team_id"]
     ]
     for col in numeric_cols:
         df[col] = pd.to_numeric(df[col], errors='coerce')
-
-    # Fill any NaNs introduced by coercion or already present (simple fill with 0)
     df.fillna(0, inplace=True)
-
-    # Scale 'now_cost' (API uses integers, e.g., 50 for 5.0m)
     if 'now_cost' in df.columns:
         df['now_cost'] = df['now_cost'] / 10.0
+
+    # --- Calculate Average FDR per Player --- (Moved After Col Selection/Typing)
+    num_fixtures_to_consider = 5 # Keep consistent
+    fdr_col_name = f'avg_fdr_next_{num_fixtures_to_consider}'
+    df[fdr_col_name] = np.nan # Initialize column
+
+    if team_upcoming_fdr:
+        # Ensure raw_team_id exists before using it
+        if 'raw_team_id' in df.columns:
+            for index, row in df.iterrows():
+                team_id = row['raw_team_id']
+                if team_id in team_upcoming_fdr:
+                    upcoming_fdr_list = team_upcoming_fdr[team_id]
+                    if upcoming_fdr_list:
+                        avg_fdr = sum(upcoming_fdr_list) / len(upcoming_fdr_list)
+                        df.loc[index, fdr_col_name] = avg_fdr
+                # else: Leave as NaN if team not in fixture lookup
+
+            # Fill NaNs after calculation
+            median_fdr = df[fdr_col_name].median()
+            fill_value = median_fdr if pd.notna(median_fdr) else 5.0
+            df[fdr_col_name] = df[fdr_col_name].fillna(fill_value)
+            logging.info(f"Calculated average FDR for next {num_fixtures_to_consider} games.")
+        else:
+            logging.warning("'raw_team_id' column missing after selection. Skipping FDR calculation.")
+            df[fdr_col_name] = df[fdr_col_name].fillna(3.0) # Neutral value
+    else:
+        # FDR calculation was skipped earlier
+        df[fdr_col_name] = df[fdr_col_name].fillna(3.0) # Neutral value
+
+    # Drop raw_team_id after use
+    df.drop(columns=['raw_team_id'], inplace=True, errors='ignore')
 
     # --- Feature Engineering ---
     logging.info("Engineering features...")
@@ -275,15 +362,16 @@ def process_data(raw_df, min_minutes_played=0, feature_weights=None):
         df["assists_over_expected"] = np.abs(df["assists"] - df["expected_assists"])
 
     # --- Feature Scaling and Final Value Calculation ---
-    logging.info("Scaling features...")
-    all_adj_feature_cols = [] # Keep track of ALL adjusted cols created
+    logging.info("Scaling features (including FDR)...")
+    all_adj_feature_cols = []
     for feature, high_is_good in FEATURES_TO_ADJUST:
         if feature in df.columns:
             df = create_adjusted_feature(df, feature, higher_is_better=high_is_good)
-            all_adj_feature_cols.append(f"{feature}_adj") # Add suffix
+            all_adj_feature_cols.append(f"{feature}_adj")
             logging.debug(f"Scaled feature: {feature}")
         else:
-            logging.warning("Feature '%s' not found for adjustment.", feature)
+            # Log warning if base feature (incl. FDR) not found before scaling
+            logging.warning("Feature '%s' not found for scaling adjustment.", feature)
 
     # --- Determine Columns for Final Value based on Weights ---
     final_value_cols = []
@@ -328,18 +416,20 @@ def process_data(raw_df, min_minutes_played=0, feature_weights=None):
         df['Final_value'] = 0.0
 
     # --- Final Column Selection ---
-    # Select only columns needed for optimization and display
+    # Ensure the new avg_fdr column is available for display if needed
     final_cols_to_keep = [
-        "web_name", "position", "team", "now_cost", "total_points", "Final_value"
+        "web_name", "position", "team", "now_cost", "total_points", "Final_value",
+        f"avg_fdr_next_{num_fixtures_to_consider}" # Add the calculated FDR column
     ]
-    # Ensure the columns actually exist before selecting
     final_cols = [col for col in final_cols_to_keep if col in df.columns]
+    if 'Final_value' not in final_cols:
+        logging.error("'Final_value' column missing before final selection.")
+        return None # Or handle differently if FDR is critical
     if not final_cols:
         logging.error("None of the essential final columns exist after processing.")
         return None
 
     processed_df = df[final_cols].copy()
-
     logging.info("Data processing complete.")
     return processed_df
 
@@ -571,13 +661,46 @@ def run_team_selection(total_budget=100.0, sub_factor=0.2, min_minutes=0, captai
         tuple: Contains three DataFrames (first_team, subs, captain) or
                (None, None, None) if any step fails.
     """
-    raw_fpl_data = get_data_fpl()
-    if raw_fpl_data is None:
-        return None, None, None  # Error logged in get_data_fpl
+    # Fetch base data (now returns full JSON)
+    bootstrap_data = get_data_fpl()
+    if bootstrap_data is None:
+        logging.error("Failed to fetch FPL bootstrap data. Cannot proceed.")
+        return None, None, None
+
+    # Extract player data
+    try:
+        raw_player_data = pd.DataFrame(bootstrap_data['elements'])
+    except KeyError:
+        logging.error("Could not find 'elements' key in bootstrap data.")
+        return None, None, None
+
+    # Find the next gameweek ID
+    next_gameweek_id = None
+    try:
+        all_events = bootstrap_data.get('events', [])
+        for event in all_events:
+            if event.get('is_next') is True:
+                next_gameweek_id = event.get('id')
+                break
+        if next_gameweek_id is None:
+            logging.warning("Could not determine the next gameweek from bootstrap data.")
+            # Handle this case - maybe default to GW1 or fail?
+            # For now, let's try to proceed but FDR calculation will likely fail.
+        else:
+            logging.info(f"Next gameweek identified: {next_gameweek_id}")
+    except Exception as e:
+        logging.error(f"Error processing events to find next gameweek: {e}")
+        # Proceed without next_gameweek_id, FDR calculation will likely fail.
+
+    # Fetch fixture data
+    fixture_df = get_fixture_data()
+    # Proceed even if fixture_df is None, processing function should handle it
 
     # Pass feature_weights down to process_data
     processed_data = process_data(
-        raw_fpl_data,
+        raw_player_data, # Use extracted player data
+        fixture_df=fixture_df, # Pass fixture data
+        next_gameweek_id=next_gameweek_id, # Pass next gameweek ID
         min_minutes_played=min_minutes,
         feature_weights=feature_weights
     )
