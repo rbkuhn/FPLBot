@@ -23,7 +23,97 @@
         {% endwith %}
         {# ----------------------------- #}
 
-        <!-- Display Parameters Used -->
+        {% if first_team_list %}
+        <div class="team-section">
+            <h2>First Team</h2>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        {% for header in headers %}
+                        <th title="{{ tooltip_map.get(header, '') }}">{{ header }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for player in first_team_list %}
+                    <tr class="{{ 'captain-row' if player.Name == captain_name else '' }}">
+                        {% for header in headers %}
+                            {# Special handling for Name column to add (C) #}
+                            {% if header == 'Name' and player.Name == captain_name %}
+                                <td>{{ player.get(header, '') }} (C)</td>
+                            {# Format Score column #}
+                            {% elif header == 'Score' %}
+                                <td>{{ player.get(header) | round(3) }}</td>
+                            {% else %}
+                                <td>{{ player.get(header, '') }}</td>
+                            {% endif %}
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if subs_list %}
+        <div class="team-section">
+            <h2>Substitutes</h2>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        {% for header in headers %}
+                        <th title="{{ tooltip_map.get(header, '') }}">{{ header }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for player in subs_list %}
+                    <tr>
+                         {% for header in headers %}
+                            {# Format Score column #}
+                            {% if header == 'Score' %}
+                                <td>{{ player.get(header) | round(3) }}</td>
+                            {% else %}
+                                <td>{{ player.get(header, '') }}</td>
+                            {% endif %}
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+         {% if captain_list %}
+        <div class="team-section">
+            <h2>Captain Detail</h2>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        {% for header in headers %}
+                        <th title="{{ tooltip_map.get(header, '') }}">{{ header }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for player in captain_list %}
+                    <tr>
+                         {% for header in headers %}
+                            {# Format Score column #}
+                            {% if header == 'Score' %}
+                                <td>{{ player.get(header) | round(3) }}</td>
+                            {% else %}
+                                <td>{{ player.get(header, '') }}</td>
+                            {% endif %}
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <!-- Selection Parameters Moved Here -->
         <div class="parameters-display">
             <h2>Selection Parameters</h2>
             <p><strong>Budget:</strong> £{{ budget }}m</p>
@@ -32,26 +122,13 @@
             <p><strong>Preferred Captain Positions:</strong> {{ captain_positions | join(', ') }}</p>
             <p><strong>Feature Weights:</strong> {{ feature_weights | join(', ') if feature_weights else 'Default Balanced' }}</p>
             <p><strong>Preferred Formation:</strong> {{ formation if formation != 'any' else 'Any Valid Formation' }}</p>
-        </div>
-
-        <div class="team-section">
-            <h2>First Team</h2>
-            {{ first_team_table | safe }}
-        </div>
-
-        <div class="team-section">
-            <h2>Substitutes</h2>
-            {{ subs_table | safe }}
-        </div>
-
-        <div class="team-section">
-            <h2>Captain</h2>
-            {{ captain_table | safe }}
+            <p><strong>Use Differential Weighting:</strong> {{ 'Yes' if use_differential else 'No' }}</p>
         </div>
 
         <!-- Wrap bottom elements for styling -->
         <div class="bottom-links">
             <p><strong>Total Cost:</strong> £{{ total_cost }}m</p>
+            <p><strong>Total Points (Season):</strong> {{ total_historical_points }}</p>
             <a href="{{ url_for('index') }}">Back to Selection</a>
         </div>
     </div>

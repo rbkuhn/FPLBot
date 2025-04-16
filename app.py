@@ -86,18 +86,30 @@ def select_fpl_team():
         flash("Error: Team selection failed. This might be due to overly strict constraints (e.g., budget too low, invalid formation, not enough players available after filtering) or an API issue. Try adjusting parameters.", category='error')
         return redirect(url_for('index'))
 
-    # --- Reorder columns to move 'Final_value' to the end ---
+    # --- Calculate Total Historical Points (BEFORE renaming) ---
+    total_historical_points = 0
+    if first_team is not None and captain is not None and not first_team.empty and not captain.empty:
+        if 'total_points' in first_team.columns and 'total_points' in captain.columns:
+            try:
+                starters_points = first_team['total_points'].sum()
+                captain_points = captain['total_points'].iloc[0]
+                total_historical_points = starters_points + captain_points
+                logging.info(f"Calculated total historical points: Starters={starters_points}, Captain={captain_points}, Total={total_historical_points}")
+            except (KeyError, IndexError, TypeError) as e:
+                logging.error(f"Error calculating historical points: {e}")
+                total_historical_points = "Error"
+        else:
+            logging.warning("'total_points' column missing. Cannot calculate historical points.")
+            total_historical_points = "N/A"
+    else:
+        total_historical_points = "N/A"
+
+    # --- Reorder columns (using original names) ---
     target_col = 'Final_value'
     if first_team is not None and target_col in first_team.columns:
         cols = [col for col in first_team.columns if col != target_col] + [target_col]
         first_team = first_team[cols]
-    if subs is not None and target_col in subs.columns:
-        cols = [col for col in subs.columns if col != target_col] + [target_col]
-        subs = subs[cols]
-    if captain is not None and target_col in captain.columns:
-        cols = [col for col in captain.columns if col != target_col] + [target_col]
-        captain = captain[cols]
-    # --- End Reorder ---
+    # No need to reorder subs/captain if display order matches first_team target
 
     # --- Rename columns for display ---
     column_rename_map = {
@@ -114,32 +126,65 @@ def select_fpl_team():
         "expected_assists": "xA",
         "expected_goal_involvements": "xGi",
         "selected_by_percent": "% Ownership",
-        "avg_fdr_next_5": "Avg FDR", # Assuming this is the fixture column name
+        "avg_fdr_next_5": "Avg FDR",
         "Final_value": "Score"
-        # Add other columns if they appear and need renaming
     }
-
     if first_team is not None:
         first_team = first_team.rename(columns=column_rename_map)
     if subs is not None:
         subs = subs.rename(columns=column_rename_map)
     if captain is not None:
         captain = captain.rename(columns=column_rename_map)
-    # --- End Rename ---
 
-    # Convert dataframes to HTML tables for easy rendering in the template
-    first_team_html = first_team.to_html(classes='table table-striped', index=False, border=0)
-    subs_html = subs.to_html(classes='table table-striped', index=False, border=0)
-    captain_html = captain.to_html(classes='table table-striped', index=False, border=0)
-    # Use the RENAMED column name to calculate total cost
-    total_cost = round(first_team['Cost (£m)'].sum() + subs['Cost (£m)'].sum(), 2)
+    # --- Get Captain Name (AFTER renaming) ---
+    captain_name = None
+    if captain is not None and not captain.empty and "Name" in captain.columns:
+        try:
+            captain_name = captain["Name"].iloc[0]
+            logging.info(f"Identified Captain: {captain_name}")
+        except (IndexError, KeyError) as e:
+            logging.error(f"Could not extract captain name: {e}")
+
+    # --- Tooltip Map (for template) ---
+    tooltip_map = {
+        "Pos": "Position (GKP=Goalkeeper, DEF=Defender, MID=Midfielder, FWD=Forward)",
+        "Cost (£m)": "Current Price in Millions",
+        "Points": "Total FPL Points Scored This Season",
+        "Mins": "Total Minutes Played This Season",
+        "Form": "Player's FPL Form Rating",
+        "Bonus": "Total Bonus Points Scored This Season",
+        "BPS": "Total Bonus Points System Score This Season",
+        "xG": "Expected Goals (Based on chance quality)",
+        "xA": "Expected Assists (Based on chance creation quality)",
+        "xGi": "Expected Goal Involvement (xG + xA)",
+        "% Ownership": "Percentage of FPL Managers Owning This Player",
+        "Avg FDR": "Average Fixture Difficulty Rating of Next 5 Games (Lower is Easier)",
+        "Score": "Calculated Player Value Score (Based on Selected Weights and Differentials)"
+    }
+
+    # --- Calculate Total Cost (using RENAMED column) ---
+    total_cost = 0.0
+    if first_team is not None and 'Cost (£m)' in first_team.columns:
+        total_cost += first_team['Cost (£m)'].sum()
+    if subs is not None and 'Cost (£m)' in subs.columns:
+        total_cost += subs['Cost (£m)'].sum()
+    total_cost = round(total_cost, 2)
+
+    # --- Prepare data for template ---
+    first_team_list = first_team.to_dict(orient='records') if first_team is not None else []
+    subs_list = subs.to_dict(orient='records') if subs is not None else []
+    captain_list = captain.to_dict(orient='records') if captain is not None else []
+    headers = list(first_team.columns) if first_team is not None and not first_team.empty else [] # Use columns from renamed DF
 
     return render_template('team.html',
-                           first_team_table=first_team_html,
-                           subs_table=subs_html,
-                           captain_table=captain_html,
+                           headers=headers, # Pass headers
+                           tooltip_map=tooltip_map, # Pass tooltips
+                           first_team_list=first_team_list, # Pass list of dicts
+                           subs_list=subs_list, # Pass list of dicts
+                           captain_list=captain_list, # Pass list of dicts
+                           captain_name=captain_name, # Pass captain's name
                            total_cost=total_cost,
-                           # Pass parameters to display on results page
+                           total_historical_points=total_historical_points,
                            budget=budget,
                            sub_factor=sub_factor,
                            min_minutes=min_minutes,
