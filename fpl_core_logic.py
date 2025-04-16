@@ -66,7 +66,7 @@ FEATURES_TO_ADJUST = [
     ("goals_over_expected", False),
     # Lower abs difference is better -> reverse scale
     ("assists_over_expected", False),
-    ("avg_fdr_next_5", False),  # Add FDR, lower is better (False)
+    ("avg_fdr_next_5", True),  # Changed: Higher FDR now treated as better for score (True)
 ]
 
 
@@ -295,7 +295,10 @@ def process_data(
     # Filter minutes
     initial_count = len(df)
     df = df[df['minutes'] >= min_minutes_played].copy()
-    logging.info(f"Filtered {initial_count - len(df)} players with < {min_minutes_played} minutes.")
+    logging.info(
+        f"Filtered {
+            initial_count -
+            len(df)} players with < {min_minutes_played} minutes.")
     logging.info(f"Players remaining for selection: {len(df)}")
     if df.empty:
         logging.warning(
@@ -433,19 +436,26 @@ def process_data(
     differential_adj_col = None
     if use_differential:
         if 'selected_by_percent' in df.columns:
-            logging.info("Calculating and scaling differential (inverse ownership) score...")
+            logging.info(
+                "Calculating and scaling differential (inverse ownership) score...")
             # Convert percentage string/float to float, handle potential errors
-            df['selected_by_percent_float'] = pd.to_numeric(df['selected_by_percent'], errors='coerce').fillna(0)
+            df['selected_by_percent_float'] = pd.to_numeric(
+                df['selected_by_percent'], errors='coerce').fillna(0)
             df['inv_ownership'] = 100.0 - df['selected_by_percent_float']
             # Scale this new feature (higher is better)
-            df = create_adjusted_feature(df, 'inv_ownership', higher_is_better=True)
+            df = create_adjusted_feature(
+                df, 'inv_ownership', higher_is_better=True)
             differential_adj_col = 'inv_ownership_adj'
             if differential_adj_col not in all_adj_feature_cols:
                 all_adj_feature_cols.append(differential_adj_col)
             # Clean up temporary column
-            df.drop(columns=['selected_by_percent_float'], inplace=True, errors='ignore')
+            df.drop(
+                columns=['selected_by_percent_float'],
+                inplace=True,
+                errors='ignore')
         else:
-            logging.warning("'selected_by_percent' column not available, cannot apply differential weighting.")
+            logging.warning(
+                "'selected_by_percent' column not available, cannot apply differential weighting.")
 
     # --- Determine Columns for Final Value based on Weights ---
     final_value_cols = []
@@ -483,13 +493,18 @@ def process_data(
             final_value_cols = all_adj_feature_cols
         else:
             logging.info(
-                "No feature weights specified, using all available adjusted features.")
-            # Default to all if no weights provided
-            final_value_cols = all_adj_feature_cols
+                "Using selected feature weights for Final Value.") # Log adjusted features used
+
+    # --- Original logic for default if no weights specified, moved outside the if feature_weights block ---
+    else:
+        logging.info(
+            "No feature weights specified, using all available adjusted features.")
+        # Default to all if no weights provided
+        final_value_cols = all_adj_feature_cols
 
     # --- Final Value Calculation ---
     if final_value_cols:
-        # Use the columns determined by weights
+        # Use the columns determined by weights OR default
         df['Final_value'] = df[final_value_cols].sum(axis=1)
         logging.info(
             "Calculated initial 'Final_value' based on %d features: %s",
@@ -498,12 +513,8 @@ def process_data(
         # Add differential score if applicable and calculated
         if use_differential and differential_adj_col and differential_adj_col in df.columns:
             df['Final_value'] = df['Final_value'] + df[differential_adj_col]
-            logging.info(f"Added scaled differential score ('{differential_adj_col}') to Final_value.")
-
-    else:
-        logging.warning(
-            "No adjusted features available to calculate Final_value. Setting to 0.")
-        df['Final_value'] = 0.0
+            logging.info(
+                f"Added scaled differential score ('{differential_adj_col}') to Final_value.")
 
     # --- Final Column Selection ---
     # Select columns needed for optimization AND display
@@ -655,31 +666,44 @@ def select_team(
                 if (num_def >= 3 and num_mid >= 2 and num_fwd >= 1 and
                         num_def + num_mid + num_fwd == 10):
                     valid_specific_formation = True
-                    logging.info(f"Applying specific formation constraints: {num_def}-{num_mid}-{num_fwd}")
+                    logging.info(
+                        f"Applying specific formation constraints: {num_def}-{num_mid}-{num_fwd}")
                 else:
-                    logging.warning(f"Invalid FPL formation specified ({formation}). Sum might be wrong or minimums not met. Reverting to standard rules.")
+                    logging.warning(
+                        f"Invalid FPL formation specified ({formation}). Sum might be wrong or minimums not met. Reverting to standard rules.")
             else:
-                logging.warning(f"Invalid formation format ({formation}). Expected D-M-F. Reverting to standard rules.")
+                logging.warning(
+                    f"Invalid formation format ({formation}). Expected D-M-F. Reverting to standard rules.")
         except ValueError:
-            logging.warning(f"Could not parse formation ({formation}). Reverting to standard rules.")
+            logging.warning(
+                f"Could not parse formation ({formation}). Reverting to standard rules.")
         except Exception as e:
-            logging.warning(f"Error processing formation ({formation}): {e}. Reverting to standard rules.")
+            logging.warning(
+                f"Error processing formation ({formation}): {e}. Reverting to standard rules.")
 
     # Apply EITHER specific OR general constraints
     if valid_specific_formation:
-        model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) == num_def, f"Num DEF Starters = {num_def}"
-        model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) == num_mid, f"Num MID Starters = {num_mid}"
-        model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) == num_fwd, f"Num FWD Starters = {num_fwd}"
+        model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]
+                            ) == num_def, f"Num DEF Starters = {num_def}"
+        model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]
+                            ) == num_mid, f"Num MID Starters = {num_mid}"
+        model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]
+                            ) == num_fwd, f"Num FWD Starters = {num_fwd}"
     else:
         if formation != 'any':
-             # Log if we intended a specific formation but it was invalid
-             logging.info("Applying standard FPL formation rules (min 3 DEF, min 2 MID, min 1 FWD) as fallback.")
+            # Log if we intended a specific formation but it was invalid
+            logging.info(
+                "Applying standard FPL formation rules (min 3 DEF, min 2 MID, min 1 FWD) as fallback.")
         else:
-             logging.info("Applying standard FPL formation rules (min 3 DEF, min 2 MID, min 1 FWD).")
+            logging.info(
+                "Applying standard FPL formation rules (min 3 DEF, min 2 MID, min 1 FWD).")
         # Standard FPL minimums for starting lineup
-        model += pulp.lpSum(decisions[i] for i in pos_indices["DEF"]) >= 3, "Min DEF Starters >= 3"
-        model += pulp.lpSum(decisions[i] for i in pos_indices["MID"]) >= 2, "Min MID Starters >= 2"
-        model += pulp.lpSum(decisions[i] for i in pos_indices["FWD"]) >= 1, "Min FWD Starters >= 1"
+        model += pulp.lpSum(decisions[i]
+                            for i in pos_indices["DEF"]) >= 3, "Min DEF Starters >= 3"
+        model += pulp.lpSum(decisions[i]
+                            for i in pos_indices["MID"]) >= 2, "Min MID Starters >= 2"
+        model += pulp.lpSum(decisions[i]
+                            for i in pos_indices["FWD"]) >= 1, "Min FWD Starters >= 1"
     # --- End Formation Constraints ---
 
     # Club constraint (max 3 players per team in the 15-player squad)
@@ -713,7 +737,9 @@ def select_team(
             model += pulp.lpSum(
                 captain_decisions[i] for i in captain_pos_indices
             ) == 1, "Captain_Position_Constraint"
-            logging.info(f"Applied captain position constraint: Captain must be one of {', '.join(captain_positions)}")
+            logging.info(
+                f"Applied captain position constraint: Captain must be one of {
+                    ', '.join(captain_positions)}")
         else:
             logging.warning(
                 "No players found matching the selected captain positions. Captain constraint not applied.")
@@ -765,8 +791,13 @@ def select_team(
     # Basic validation
     if len(player_indices) != 11 or len(
             sub_player_indices) != 4 or len(cap_player_indices) != 1:
-        logging.error(f"Error: Optimization result has incorrect number of players/captain.")
-        logging.error(f"Starters: {len(player_indices)}, Subs: {len(sub_player_indices)}, Captain: {len(cap_player_indices)}")
+        logging.error(
+            f"Error: Optimization result has incorrect number of players/captain.")
+        logging.error(
+            f"Starters: {
+                len(player_indices)}, Subs: {
+                len(sub_player_indices)}, Captain: {
+                len(cap_player_indices)}")
         # Consider returning the partial results or None
         return None, None, None
 

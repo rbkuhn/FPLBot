@@ -14,6 +14,7 @@ A Flask web application to help select an optimal Fantasy Premier League (FPL) t
     *   Preferred formation (e.g., 3-4-3, 4-4-2), correctly enforced, or allows any valid formation.
     *   Allowed positions for captain selection.
     *   Weighting of different feature categories (points, value, form, expected stats, fixtures) in the player valuation (`Final_value`).
+        *   *Note:* Currently, selecting 'fixtures' treats higher raw FDR values as contributing positively to the score.
     *   Optional differential weighting (boosts value for low-ownership players).
 *   Adheres to FPL constraints:
     *   Budget limit.

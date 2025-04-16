@@ -158,7 +158,7 @@ def select_fpl_team():
         "xA": "Expected Assists (Based on chance creation quality)",
         "xGi": "Expected Goal Involvement (xG + xA)",
         "% Ownership": "Percentage of FPL Managers Owning This Player",
-        "Avg FDR": "Average Fixture Difficulty Rating of Next 5 Games (Lower is Easier)",
+        "Avg FDR": "Average Fixture Difficulty Rating of Next 5 Games",
         "Score": "Calculated Player Value Score (Based on Selected Weights and Differentials)"
     }
 
@@ -173,7 +173,6 @@ def select_fpl_team():
     # --- Prepare data for template ---
     first_team_list = first_team.to_dict(orient='records') if first_team is not None else []
     subs_list = subs.to_dict(orient='records') if subs is not None else []
-    captain_list = captain.to_dict(orient='records') if captain is not None else []
     headers = list(first_team.columns) if first_team is not None and not first_team.empty else [] # Use columns from renamed DF
 
     return render_template('team.html',
@@ -181,7 +180,6 @@ def select_fpl_team():
                            tooltip_map=tooltip_map, # Pass tooltips
                            first_team_list=first_team_list, # Pass list of dicts
                            subs_list=subs_list, # Pass list of dicts
-                           captain_list=captain_list, # Pass list of dicts
                            captain_name=captain_name, # Pass captain's name
                            total_cost=total_cost,
                            total_historical_points=total_historical_points,
