@@ -739,13 +739,8 @@ def select_team(
     # Basic validation
     if len(player_indices) != 11 or len(
             sub_player_indices) != 4 or len(cap_player_indices) != 1:
-        logging.error(
-            "Error: Optimization result has incorrect number of players/captain.")
-        logging.error(
-            f"Starters: {
-                len(player_indices)}, Subs: {
-                len(sub_player_indices)}, Captain: {
-                len(cap_player_indices)}")
+        logging.error(f"Error: Optimization result has incorrect number of players/captain.")
+        logging.error(f"Starters: {len(player_indices)}, Subs: {len(sub_player_indices)}, Captain: {len(cap_player_indices)}")
         # Consider returning the partial results or None
         return None, None, None
 
