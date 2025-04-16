@@ -27,8 +27,13 @@ A Flask web application to help select an optimal Fantasy Premier League (FPL) t
     *   Wider page layout for better table visibility.
     *   Semi-transparent backgrounds on text elements for improved readability over the background image.
     *   User-friendly column headers in result tables (e.g., "Cost (£m)", "Points", "xG", "xGi", "% Ownership", "Score").
+    *   Tooltips on table headers explaining the metric.
+    *   Score column formatted to 3 decimal places.
+    *   Highlights the captain with bold text, a background color, and "(C)" marker in the First Team list.
+    *   Displays total historical points for the selected starting 11 (including double captain points).
     *   Displays key stats like xG, xA, xGi, and % Ownership.
     *   Basic user feedback for input errors and selection failures (Flash messages).
+    *   Selection Parameters section moved to the bottom of the results page for better layout flow.
 
 ## Technology Stack
 
