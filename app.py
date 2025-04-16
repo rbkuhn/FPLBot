@@ -31,6 +31,8 @@ def select_fpl_team():
             # Let's handle the default logic more robustly later if needed, for now just flash.
             pass # Avoid error if FEATURE_WEIGHT_MAP is not accessible here
         formation = request.form.get('formation', 'any')
+        # Get differential weighting flag (checkbox value is 'true' if checked, or None)
+        use_differential = request.form.get('differential_weighting') == 'true'
 
         # Add specific validation
         if budget < 50 or budget > 200:
@@ -60,6 +62,7 @@ def select_fpl_team():
     logging.info(f"Received request: Budget={budget}, Sub Factor={sub_factor}, Min Minutes={min_minutes}")
     logging.info(f"Captain Positions: {captain_positions}, Formation: {formation}")
     logging.info(f"Feature Weights: {feature_weights}")
+    logging.info(f"Use Differential Weighting: {use_differential}")
 
     # Call the main function from your script with the new parameters
     try:
@@ -69,7 +72,8 @@ def select_fpl_team():
             min_minutes=min_minutes,
             captain_positions=captain_positions,
             feature_weights=feature_weights,
-            formation=formation
+            formation=formation,
+            use_differential=use_differential
         )
     except Exception as e:
         # Catch potential unexpected errors from the core logic
@@ -141,7 +145,8 @@ def select_fpl_team():
                            min_minutes=min_minutes,
                            captain_positions=captain_positions,
                            feature_weights=feature_weights,
-                           formation=formation)
+                           formation=formation,
+                           use_differential=use_differential)
 
 # Add more routes later for team selection, etc.
 

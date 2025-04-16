@@ -192,7 +192,8 @@ def process_data(
         fixture_df=None,
         next_gameweek_id=None,
         min_minutes_played=0,
-        feature_weights=None):
+        feature_weights=None,
+        use_differential=False):
     """Processes the raw FPL data to prepare it for team selection.
 
     Args:
@@ -201,6 +202,7 @@ def process_data(
         next_gameweek_id (int, optional): ID of the next gameweek.
         min_minutes_played (int): Minimum minutes player must have played.
         feature_weights (list, optional): User-selected feature categories.
+        use_differential (bool): Whether to include differential weighting.
 
     Returns:
         pd.DataFrame: Processed DataFrame ready for optimization,
@@ -427,6 +429,24 @@ def process_data(
                 "Feature '%s' not found for scaling adjustment.",
                 feature)
 
+    # --- Add Differential Score (Inverse Ownership) if requested ---
+    differential_adj_col = None
+    if use_differential:
+        if 'selected_by_percent' in df.columns:
+            logging.info("Calculating and scaling differential (inverse ownership) score...")
+            # Convert percentage string/float to float, handle potential errors
+            df['selected_by_percent_float'] = pd.to_numeric(df['selected_by_percent'], errors='coerce').fillna(0)
+            df['inv_ownership'] = 100.0 - df['selected_by_percent_float']
+            # Scale this new feature (higher is better)
+            df = create_adjusted_feature(df, 'inv_ownership', higher_is_better=True)
+            differential_adj_col = 'inv_ownership_adj'
+            if differential_adj_col not in all_adj_feature_cols:
+                all_adj_feature_cols.append(differential_adj_col)
+            # Clean up temporary column
+            df.drop(columns=['selected_by_percent_float'], inplace=True, errors='ignore')
+        else:
+            logging.warning("'selected_by_percent' column not available, cannot apply differential weighting.")
+
     # --- Determine Columns for Final Value based on Weights ---
     final_value_cols = []
     if feature_weights:
@@ -469,11 +489,17 @@ def process_data(
 
     # --- Final Value Calculation ---
     if final_value_cols:
+        # Use the columns determined by weights
         df['Final_value'] = df[final_value_cols].sum(axis=1)
         logging.info(
-            "Calculated 'Final_value' based on %d features: %s",
+            "Calculated initial 'Final_value' based on %d features: %s",
             len(final_value_cols),
             ", ".join(final_value_cols))
+        # Add differential score if applicable and calculated
+        if use_differential and differential_adj_col and differential_adj_col in df.columns:
+            df['Final_value'] = df['Final_value'] + df[differential_adj_col]
+            logging.info(f"Added scaled differential score ('{differential_adj_col}') to Final_value.")
+
     else:
         logging.warning(
             "No adjusted features available to calculate Final_value. Setting to 0.")
@@ -763,7 +789,8 @@ def run_team_selection(
         min_minutes=0,
         captain_positions=None,
         feature_weights=None,
-        formation='any'):
+        formation='any',
+        use_differential=False):
     """Main function to fetch data, process it, and select the team.
 
     Args:
@@ -773,6 +800,7 @@ def run_team_selection(
         captain_positions (list): List of positions allowed for captain.
         feature_weights (list): List of features categories to weight.
         formation (str): Preferred formation (e.g., '343', '442', 'any').
+        use_differential (bool): Whether to include differential weighting.
 
     Returns:
         tuple: Contains three DataFrames (first_team, subs, captain) or
@@ -821,7 +849,8 @@ def run_team_selection(
         fixture_df=fixture_df,  # Pass fixture data
         next_gameweek_id=next_gameweek_id,  # Pass next gameweek ID
         min_minutes_played=min_minutes,
-        feature_weights=feature_weights
+        feature_weights=feature_weights,
+        use_differential=use_differential
     )
     if processed_data is None or processed_data.empty:
         logging.error("Data processing failed or resulted in empty DataFrame.")
@@ -855,8 +884,7 @@ def run_team_selection(
         total_budget=total_budget,
         captain_positions=captain_positions,
         formation=formation,
-        feature_weights=feature_weights  # Pass weights to select_team too if needed later?
-        # For now, weights only affect process_data
+        feature_weights=feature_weights
     )
 
     # select_team logs its own errors if it returns None
@@ -870,11 +898,14 @@ if __name__ == '__main__':
     test_sub_factor = 0.2
     # Example: filter for players with at least 5 games worth of minutes
     test_min_minutes = 90 * 5
+    # Example: Include differential weighting in test
+    test_use_differential = True
 
     ft, sb, cap = run_team_selection(
         total_budget=test_budget,
         sub_factor=test_sub_factor,
-        min_minutes=test_min_minutes
+        min_minutes=test_min_minutes,
+        use_differential=test_use_differential
     )
 
     if ft is not None and sb is not None and cap is not None:

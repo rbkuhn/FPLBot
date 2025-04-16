@@ -14,6 +14,7 @@ A Flask web application to help select an optimal Fantasy Premier League (FPL) t
     *   Preferred formation (e.g., 3-4-3, 4-4-2), correctly enforced, or allows any valid formation.
     *   Allowed positions for captain selection.
     *   Weighting of different feature categories (points, value, form, expected stats, fixtures) in the player valuation (`Final_value`).
+    *   Optional differential weighting (boosts value for low-ownership players).
 *   Adheres to FPL constraints:
     *   Budget limit.
     *   Squad composition (2 GKP, 5 DEF, 5 MID, 3 FWD).
@@ -78,7 +79,6 @@ A Flask web application to help select an optimal Fantasy Premier League (FPL) t
 ## Future Enhancements
 
 *   **Transfer Suggestions:** Allow users to input their FPL Team ID, fetch their current squad, and suggest optimal transfers (out/in) based on the app's player valuation logic.
-*   **Differential Value:** Add an option to boost the value of low-ownership players.
 *   **BGW/DGW Handling:** Add features to help plan for blank and double gameweeks (e.g., excluding players with blanks).
 *   **Injury/Status Display:** Show player status (injured, doubtful) and news more prominently in the results.
 *   **UI/UX Improvements:**
