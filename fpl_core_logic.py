@@ -687,9 +687,7 @@ def select_team(
             model += pulp.lpSum(
                 captain_decisions[i] for i in captain_pos_indices
             ) == 1, "Captain_Position_Constraint"
-            logging.info(
-                f"Applied captain position constraint: Captain must be one of {
-                    ', '.join(captain_positions)}")
+            logging.info(f"Applied captain position constraint: Captain must be one of {', '.join(captain_positions)}")
         else:
             logging.warning(
                 "No players found matching the selected captain positions. Captain constraint not applied.")
