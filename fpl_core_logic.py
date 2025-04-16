@@ -293,10 +293,7 @@ def process_data(
     # Filter minutes
     initial_count = len(df)
     df = df[df['minutes'] >= min_minutes_played].copy()
-    logging.info(
-        f"Filtered {
-            initial_count -
-            len(df)} players with < {min_minutes_played} minutes.")
+    logging.info(f"Filtered {initial_count - len(df)} players with < {min_minutes_played} minutes.")
     logging.info(f"Players remaining for selection: {len(df)}")
     if df.empty:
         logging.warning(
