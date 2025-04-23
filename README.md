@@ -92,3 +92,50 @@ A Flask web application to help select an optimal Fantasy Premier League (FPL) t
     *   Add tooltips for form inputs/stats.
     *   Add loading indicator.
     *   Add user control for number of fixtures to consider (currently hardcoded).
+*   **Advanced Analytics:**
+    *   **Player Form Analysis:** Implement rolling averages for player performance metrics over the last 3-6 gameweeks.
+    *   **Team Strength Analysis:** Calculate team-specific attacking/defending strength metrics based on recent performances.
+    *   **Fixture Difficulty Rating (FDR) Enhancement:** Consider home/away performance and recent form when calculating FDR.
+    *   **Expected Points (xP) Model:** Develop a comprehensive expected points model incorporating xG, xA, clean sheet probability, and bonus point potential.
+*   **Team Management Features:**
+    *   **Chip Strategy Planner:** Help users plan when to use their chips (Wildcard, Free Hit, Bench Boost, Triple Captain).
+    *   **Price Change Predictor:** Track and predict player price changes based on transfer activity.
+    *   **Team Value Tracker:** Monitor and optimize team value over time.
+    *   **Auto-Substitution Logic:** Implement smart bench ordering based on fixture difficulty and player form.
+*   **League Analysis:**
+    *   **Mini-League Analysis:** Compare team performance against mini-league rivals.
+    *   **Template Team Detection:** Identify common player picks in top teams.
+    *   **Differential Finder:** Highlight high-value players with low ownership.
+*   **Data Visualization:**
+    *   **Player Performance Charts:** Visualize player performance trends over time.
+    *   **Fixture Calendar:** Interactive calendar view of upcoming fixtures with difficulty ratings.
+    *   **Team Strength Matrix:** Visual representation of team attacking/defending strengths.
+*   **Machine Learning Integration:**
+    *   **Player Performance Prediction:** Use historical data to predict future performance.
+    *   **Optimal Captain Selection:** ML-based captain selection considering form, fixtures, and historical performance.
+    *   **Transfer Success Predictor:** Predict the success rate of potential transfers.
+*   **API Enhancements:**
+    *   **Real-time Updates:** Implement WebSocket connections for live updates.
+    *   **Historical Data Analysis:** Access and analyze historical FPL data for better predictions.
+    *   **Player Comparison Tool:** Compare multiple players across various metrics.
+*   **User Experience:**
+    *   **Custom Alerts:** Set up notifications for price changes, injuries, and team news.
+    *   **Mobile Responsive Design:** Optimize the interface for mobile devices.
+    *   **Dark Mode:** Add a dark mode option for the interface.
+    *   **Export Functionality:** Allow exporting team data to CSV/Excel for further analysis.
+*   **Social Features:**
+    *   **Team Sharing:** Share team selections and strategies with other users.
+    *   **Community Ratings:** Allow users to rate and comment on player picks.
+    *   **Expert Insights:** Integrate expert opinions and analysis from FPL content creators.
+*   **Gameweek Planning:**
+    *   **Multi-Gameweek Planner:** Plan transfers and team selections across multiple gameweeks.
+    *   **Rotation Planner:** Optimize team selection considering fixture congestion.
+    *   **Captain Rotation Strategy:** Plan captain choices across multiple gameweeks.
+*   **Performance Metrics:**
+    *   **Team Value vs Points Analysis:** Track the relationship between team value and points scored.
+    *   **Transfer Success Rate:** Analyze the success rate of transfers made.
+    *   **Bench Points Analysis:** Track and optimize bench points contribution.
+*   **Integration Features:**
+    *   **FPL API Integration:** Direct integration with FPL API for automatic team updates.
+    *   **Fantasy Football Scout Integration:** Access additional player statistics and analysis.
+    *   **Twitter Integration:** Share team updates and receive news alerts.
